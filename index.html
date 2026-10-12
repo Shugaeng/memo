@@ -604,7 +604,7 @@ function icon(name, extra = '') {
    가계부 연동 데이터는 월별 합계만 캐시(원본 거래내역은 저장하지 않음).
    ===================================================================== */
 // 배포할 때마다 올리고, service-worker.js의 CACHE_NAME도 같은 버전으로 맞춘다
-const APP_VERSION = '1.3.0';
+const APP_VERSION = '1.3.1';
 const KEY = 'moa_data_v1';
 const LINK_KEY = 'moa_gagyebu_cache_v1';
 const THEME_KEY = 'moa_theme';
@@ -771,17 +771,26 @@ function acctFlow(a, ym, includeTransfers) {
   });
   return { inn, out, net: inn - out, any };
 }
+// '이월'(원래 있던 돈) 기록: 잔액에는 반영하지만 저금으로 세지 않는다.
+// 직접 표시한 기록(carry: true/false)이 우선이고, 표시가 없으면 계좌의 첫 '잔액' 기록(등록 시 시작 잔액)만 이월로 본다
+function isCarry(a, t) {
+  if (t.transferId || t.type === 'out') return false;
+  if (t.carry != null) return !!t.carry;
+  const first = sortedTxs(a)[0];
+  return t.type === 'set' && first && first.id === t.id;
+}
 function acctGrowth(a, ym) {
-  // 그달 잔액 증가분 = 월말 잔액 − 전월말 잔액. 그달에 등록한 계좌는 등록 시 '시작 잔액'을 기준으로 삼는다
-  // (원래 있던 돈은 저금이 아님). 등록 전 달은 null
+  // 그달 저금 = 그달 기록들이 만든 잔액 변화의 합 (이월 기록 제외). 등록 전 달은 null
   const st = acctStart(a);
   if (!st || st.slice(0, 7) > ym) return null;
-  const end = ym === NOW_YM() ? '9999-12-31' : monthEnd(ym);
-  const prevEnd = monthEnd(addMonths(ym, -1));
-  let base;
-  if (st > prevEnd) { const first = sortedTxs(a)[0]; base = first && first.type === 'set' ? first.amount : 0; }
-  else base = acctBalance(a, prevEnd);
-  return acctBalance(a, end) - base;
+  let bal = 0, g = 0;
+  for (const t of sortedTxs(a)) {
+    if (t.date.slice(0, 7) > ym) break;
+    const before = bal;
+    if (t.type === 'in') bal += t.amount; else if (t.type === 'out') bal -= t.amount; else if (t.type === 'set') bal = t.amount;
+    if (t.date.slice(0, 7) === ym && !isCarry(a, t)) g += bal - before;
+  }
+  return g;
 }
 function accountsSaved(ym, accs = state.accounts) {
   // 월 저금액(계좌 기준) = 계좌들의 잔액 증가분 합계. 입금·출금·잔액 수정이 모두 반영되고,
@@ -1602,15 +1611,16 @@ function openAccountDetail(id, txType = 'in') {
       <div class="input-row"><input class="input" id="t-amt" inputmode="numeric" placeholder="${txType === 'set' ? '현재 잔액' : '금액'}"><input class="input" type="date" id="t-date" value="${todayStr()}"></div>
       ${quickAmounts(0, [10000, 100000, 300000, 1000000])}
       <input class="input" id="t-memo" placeholder="메모 (선택)" style="margin-top:8px">
+      <label id="t-carry-row" style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px;color:var(--text-2)"><input type="checkbox" id="t-carry" style="width:18px;height:18px;accent-color:var(--accent)">원래 있던 돈 (이월) — 저금으로 세지 않아요</label>
       <div class="hint" id="t-hint"></div>
       <button class="btn primary block" style="margin-top:10px" id="t-add">${icon('plus')}기록</button>
     </div>
-    <div class="card-sub" style="margin:8px 0 4px">거래 내역</div>
+    <div class="card-sub" style="margin:8px 0 4px">거래 내역 · <span style="color:var(--muted)">[저금]/[이월]을 눌러 바꿀 수 있어요</span></div>
     <div>${txs.length ? txs.map(t => {
       const peer = t.peer ? acctById(t.peer) : null;
       const label = t.transferId ? (t.type === 'in' ? `${peer ? esc(peer.name) : '다른 계좌'}에서 이체` : `${esc(ro(peer ? peer.name : '다른 계좌'))} 이체`) : (esc(t.memo) || TX_LABEL[t.type]);
       const amt = t.type === 'set' ? `<span style="color:var(--text-2)">잔액 ${won(t.amount)}</span>` : `<span class="${t.type === 'in' ? 'up' : 'down'}">${t.type === 'in' ? '+' : '−'}${won(t.amount)}</span>`;
-      return `<div class="list-row"><div class="grow"><div>${label}</div><div class="sub">${t.date.replace(/-/g, '.')}${t.transferId && t.memo ? ' · ' + esc(t.memo) : ''}</div></div><div class="amt">${amt}</div><button class="icon-btn" style="width:32px;height:32px" data-del-tx="${t.id}" aria-label="삭제">${icon('x')}</button></div>`;
+      return `<div class="list-row"><div class="grow"><div>${label}</div><div class="sub">${t.date.replace(/-/g, '.')}${t.transferId && t.memo ? ' · ' + esc(t.memo) : ''}</div></div><div class="amt">${amt}${(t.type === 'in' || t.type === 'set') && !t.transferId ? `<div><button class="chip ${isCarry(a, t) ? '' : 'hit'}" style="border:0;margin-top:4px;font-size:11px;padding:2px 8px" data-carry="${t.id}">${isCarry(a, t) ? '이월' : '저금'}</button></div>` : ''}</div><button class="icon-btn" style="width:32px;height:32px" data-del-tx="${t.id}" aria-label="삭제">${icon('x')}</button></div>`;
     }).join('') : '<div class="empty-state">아직 거래 기록이 없어요</div>'}</div>`,
   root => {
     renderLine(root.querySelector('#a-line'), { labels, title: `${a.name} 잔액 추이`, series: [{ name: '잔액', values: balanceSeries([a], months), color: acctColor(a), area: true }] });
@@ -1622,6 +1632,7 @@ function openAccountDetail(id, txType = 'in') {
       hint.textContent = { in: '들어온 돈은 이번 달 저금액에 더해져요.', out: '꺼낸 돈은 이번 달 저금액에서 빠져요.', move: '내 계좌끼리 옮긴 돈은 저금액에 영향이 없어요.', set: '지금 잔액을 입력하면, 달라진 만큼 이번 달 저금액에 반영돼요.' }[type];
       amt.placeholder = type === 'set' ? '현재 잔액' : '금액';
       root.querySelector('#t-move-row').style.display = type === 'move' ? '' : 'none';
+      root.querySelector('#t-carry-row').style.display = type === 'in' || type === 'set' ? 'flex' : 'none';
     };
     setHint();
     root.querySelectorAll('#t-type button').forEach(b => b.onclick = () => { type = b.dataset.t; root.querySelectorAll('#t-type button').forEach(x => x.classList.toggle('on', x === b)); setHint(); });
@@ -1637,7 +1648,8 @@ function openAccountDetail(id, txType = 'in') {
         peer.txs = peer.txs || [];
         peer.txs.push({ id: uid(), ts, date, type: 'in', amount: v, memo, transferId, peer: a.id });
       } else {
-        a.txs.push({ id: uid(), ts, date, type, amount: v, memo });
+        const carry = (type === 'in' || type === 'set') && root.querySelector('#t-carry').checked;
+        a.txs.push(Object.assign({ id: uid(), ts, date, type, amount: v, memo }, carry ? { carry: true } : {}));
       }
       const goalsBefore = state.goals.filter(g => goalAccounts(g).length && goalSaved(g) < g.target).map(g => g.id);
       save(); render(); openAccountDetail(id, type);
@@ -1645,6 +1657,13 @@ function openAccountDetail(id, txType = 'in') {
       const ms = monthSaved(date.slice(0, 7));
       toast(reached ? `🎉 '${reached.name}' 목표 달성!` : type !== 'move' && ms.source === 'acct' ? `${mLabel(date.slice(0, 7))} 저금 ${ms.value < 0 ? '−' : ''}${won(Math.abs(ms.value))}으로 반영됐어요` : '기록했어요');
     };
+    root.querySelectorAll('[data-carry]').forEach(b => b.onclick = () => {
+      const t = a.txs.find(x => x.id === b.dataset.carry); if (!t) return;
+      t.carry = !isCarry(a, t);
+      save(); render(); openAccountDetail(id, type);
+      const ms = monthSaved(t.date.slice(0, 7));
+      toast(`${t.carry ? '이월로 바꿨어요' : '저금으로 바꿨어요'}${ms.source === 'acct' ? ` · ${mLabel(t.date.slice(0, 7))} 저금 ${won(ms.value)}` : ''}`);
+    });
     root.querySelectorAll('[data-del-tx]').forEach(b => b.onclick = () => {
       const t = a.txs.find(x => x.id === b.dataset.delTx); if (!t) return;
       if (!confirm(t.transferId ? '이체 기록을 삭제할까요? 상대 계좌의 기록도 함께 지워져요.' : '이 기록을 삭제할까요?')) return;
