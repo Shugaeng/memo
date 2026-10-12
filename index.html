@@ -285,6 +285,10 @@ button { cursor: pointer; }
 .link-status { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-2); }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
 .dot.on { background: var(--hit); box-shadow: 0 0 0 4px var(--accent-soft); }
+.dot.wait { background: var(--pending); animation: pulse 1.2s ease-in-out infinite; }
+.dot.err { background: var(--miss); }
+@keyframes pulse { 50% { opacity: .35; } }
+.sync-code { font-size: 22px; font-weight: 700; letter-spacing: .14em; text-align: center; padding: 14px; border-radius: 14px; background: var(--surface-2); border: 1px dashed var(--line); margin-bottom: 10px; font-variant-numeric: tabular-nums; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 details.table-view summary { font-size: 12px; color: var(--muted); cursor: pointer; margin-top: 10px; }
 details.table-view table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }
@@ -482,6 +486,14 @@ details.table-view td:first-child, details.table-view th:first-child { text-alig
     </div>
 
     <div class="card">
+      <div class="card-head">
+        <h2 class="card-title">클라우드 동기화</h2>
+        <div class="link-status"><span class="dot" id="sync-dot"></span><span id="sync-text"></span></div>
+      </div>
+      <div id="sync-body"></div>
+    </div>
+
+    <div class="card">
       <div class="card-head"><h2 class="card-title">데이터</h2></div>
       <div style="display:flex; gap:8px; flex-wrap:wrap">
         <button class="btn sm" id="export-btn">백업 내보내기</button>
@@ -489,7 +501,7 @@ details.table-view td:first-child, details.table-view th:first-child { text-alig
         <input type="file" id="import-file" accept="application/json,.json" hidden>
         <button class="btn sm danger" id="reset-btn">전체 초기화</button>
       </div>
-      <div class="hint">모든 기록은 이 기기에만 저장돼요. 기기를 바꾸기 전에 꼭 백업해 주세요.</div>
+      <div class="hint" id="data-hint"></div>
     </div>
   </section>
 </div>
@@ -569,6 +581,7 @@ function load() {
 }
 function save() {
   try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { toast('저장에 실패했어요'); }
+  queueCloudPush();
 }
 function loadLink() {
   try { return JSON.parse(localStorage.getItem(LINK_KEY)) || null; } catch (e) { return null; }
@@ -1094,6 +1107,7 @@ function renderJournal() {
    렌더 — 설정
    ===================================================================== */
 function renderSettings() {
+  renderSyncCard();
   document.getElementById('set-target').value = state.settings.monthlyTarget ? state.settings.monthlyTarget.toLocaleString('ko-KR') : '';
   document.getElementById('link-code').value = state.settings.linkCode || '';
   document.getElementById('link-mode').value = state.settings.linkMode;
@@ -1381,13 +1395,19 @@ const GAGYEBU_FIREBASE = {
 function loadScript(src) {
   return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('스크립트를 불러오지 못했어요')); document.head.appendChild(s); });
 }
-async function firestoreReadonly() {
-  if (!window.firebase?.firestore) {
-    await loadScript('https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js');
-    await loadScript('https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js');
-  }
-  const app = firebase.apps.find(a => a.name === 'gagyebu-readonly') || firebase.initializeApp(GAGYEBU_FIREBASE, 'gagyebu-readonly');
-  return app.firestore();
+let firestorePromise = null;
+function firestoreDb() {
+  // 가계부와 같은 Firebase 프로젝트를 쓰지만, 가계부 문서(couples_budgets)는 get()으로 읽기만 하고
+  // 이 앱의 데이터는 별도 컬렉션(moa_savings)에만 쓴다.
+  if (!firestorePromise) firestorePromise = (async () => {
+    if (!window.firebase?.firestore) {
+      await loadScript('https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js');
+      await loadScript('https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js');
+    }
+    const app = firebase.apps.find(a => a.name === 'moa') || firebase.initializeApp(GAGYEBU_FIREBASE, 'moa');
+    return app.firestore();
+  })().catch(e => { firestorePromise = null; throw e; });
+  return firestorePromise;
 }
 function summarizeTransactions(transactions) {
   const monthly = {};
@@ -1406,7 +1426,7 @@ async function syncGagyebu(code, silent) {
   if (!/^\d{6}$/.test(code)) { toast('6자리 숫자 코드를 입력해 주세요'); return; }
   btn.disabled = true; btn.textContent = '연결 중…';
   try {
-    const db = await firestoreReadonly();
+    const db = await firestoreDb();
     const snap = await db.collection('couples_budgets').doc(code).get();
     if (!snap.exists) throw new Error('해당 코드의 가계부를 찾을 수 없어요');
     const data = snap.data();
@@ -1418,6 +1438,175 @@ async function syncGagyebu(code, silent) {
     console.warn(e);
     if (!silent) toast(e.message || '연동에 실패했어요');
   } finally { btn.disabled = false; btn.textContent = '연동'; }
+}
+
+
+/* =====================================================================
+   클라우드 동기화 — Firestore moa_savings/{코드} 문서 하나에 전체 상태를 저장.
+   - 변경 시 0.8초 디바운스 후 업로드, 다른 기기 변경은 onSnapshot으로 실시간 반영
+   - 충돌은 문서 단위 '마지막 저장 우선'(clientUpdatedAt 비교)
+   - 오프라인 중 변경은 dirty 플래그로 기억했다가 다시 연결되면 올린다
+   ===================================================================== */
+const SYNC_KEY = 'moa_sync_code';
+const SYNC_META_KEY = 'moa_sync_meta';      // { localUpdatedAt, dirty }
+const SYNC_COLLECTION = 'moa_savings';
+const DEVICE_ID = (() => { try { let d = localStorage.getItem('moa_device'); if (!d) { d = uid(); localStorage.setItem('moa_device', d); } return d; } catch (e) { return uid(); } })();
+let syncCode = (() => { try { return localStorage.getItem(SYNC_KEY) || ''; } catch (e) { return ''; } })();
+let syncStatus = syncCode ? 'connecting' : 'off';   // off | connecting | online | offline | error
+let syncError = '';
+let syncUnsub = null, pushTimer = null;
+
+function syncMeta() { try { return JSON.parse(localStorage.getItem(SYNC_META_KEY)) || {}; } catch (e) { return {}; } }
+function setSyncMeta(m) { try { localStorage.setItem(SYNC_META_KEY, JSON.stringify(Object.assign(syncMeta(), m))); } catch (e) {} }
+
+function genSyncCode() {
+  // 헷갈리는 문자(0/O, 1/I/L) 제외 8자리 — 추측하기 어렵게
+  const A = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  const r = crypto.getRandomValues(new Uint32Array(8));
+  return Array.from(r, x => A[x % A.length]).join('');
+}
+const normCode = c => String(c || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+const fmtCode = c => c.replace(/(.{4})(?=.)/g, '$1-');
+
+function setSyncStatus(st, err = '') {
+  syncStatus = st; syncError = err;
+  if (currentView === 'settings') renderSyncCard();
+}
+function syncPayload() {
+  return { app: 'moa', version: 1, settings: state.settings, months: state.months, goals: state.goals, journal: state.journal };
+}
+function queueCloudPush() {
+  setSyncMeta({ localUpdatedAt: Date.now(), dirty: true });
+  if (!syncCode) return;
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(pushToCloud, 800);
+}
+async function pushToCloud() {
+  if (!syncCode) return;
+  const code = syncCode;
+  const stamp = syncMeta().localUpdatedAt || Date.now();
+  try {
+    const db = await firestoreDb();
+    await db.collection(SYNC_COLLECTION).doc(code).set(Object.assign(syncPayload(), {
+      clientUpdatedAt: stamp, deviceId: DEVICE_ID, updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    }));
+    // 업로드 도중 새 변경이 없었을 때만 dirty 해제
+    if (code === syncCode && syncMeta().localUpdatedAt === stamp) setSyncMeta({ dirty: false });
+  } catch (e) {
+    console.warn('동기화 업로드 실패', e);
+    setSyncStatus('error', syncErrorText(e));
+  }
+}
+function syncErrorText(e) {
+  if (e?.code === 'permission-denied') return 'Firebase 보안 규칙이 moa_savings 컬렉션 접근을 막고 있어요';
+  if (e?.code === 'unavailable' || !navigator.onLine) return '오프라인이에요. 연결되면 자동으로 올릴게요';
+  return e?.message || '동기화 중 문제가 생겼어요';
+}
+function applyRemote(d) {
+  state = {
+    settings: Object.assign({}, DEFAULT_STATE.settings, d.settings),
+    months: d.months || {}, goals: Array.isArray(d.goals) ? d.goals : [], journal: Array.isArray(d.journal) ? d.journal : [],
+  };
+  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
+  setSyncMeta({ localUpdatedAt: d.clientUpdatedAt || Date.now(), dirty: false });
+  // 다른 기기에서 가계부 연동 코드를 설정했다면 이 기기도 가계부 요약을 받아온다
+  if (state.settings.linkCode && !linkCache) syncGagyebu(state.settings.linkCode, true);
+  if (!sheet.classList.contains('show')) render();   // 입력 중인 시트는 닫지 않음
+}
+async function connectSync(code, mode) {
+  // mode: 'create' = 이 기기 데이터로 새 공간 생성, 'join' = 기존 코드에 연결
+  code = normCode(code);
+  if (code.length < 6) { toast('동기화 코드를 확인해 주세요'); return; }
+  if (syncUnsub) { syncUnsub(); syncUnsub = null; }
+  syncCode = code;
+  try { localStorage.setItem(SYNC_KEY, code); } catch (e) {}
+  setSyncStatus('connecting');
+  let db;
+  try { db = await firestoreDb(); } catch (e) { setSyncStatus('offline', '클라우드에 연결할 수 없어요. 연결되면 다시 시도할게요'); return; }
+  if (code !== syncCode) return;
+  const ref = db.collection(SYNC_COLLECTION).doc(code);
+  let first = true;
+  syncUnsub = ref.onSnapshot(snap => {
+    if (code !== syncCode) return;
+    const fromCache = snap.metadata.fromCache;
+    const d = snap.data();
+    if (first && !fromCache) {
+      first = false;
+      const meta = syncMeta();
+      if (!d) {
+        if (mode === 'join') { toast('이 코드로 저장된 데이터가 없어서 이 기기 기록을 올렸어요'); }
+        pushToCloud();
+      } else if (mode === 'create') {
+        pushToCloud();
+      } else if (mode === 'join') {
+        applyRemote(d); toast('클라우드 기록을 불러왔어요');
+      } else if (meta.dirty && (meta.localUpdatedAt || 0) > (d.clientUpdatedAt || 0)) {
+        pushToCloud();   // 오프라인 동안 바뀐 이 기기 기록이 더 최신
+      } else if ((d.clientUpdatedAt || 0) !== (meta.localUpdatedAt || 0)) {
+        applyRemote(d);
+      }
+    } else if (d && !snap.metadata.hasPendingWrites && d.deviceId !== DEVICE_ID && (d.clientUpdatedAt || 0) > (syncMeta().localUpdatedAt || 0)) {
+      applyRemote(d);
+    }
+    setSyncStatus(fromCache ? 'offline' : 'online');
+  }, err => {
+    console.warn('동기화 오류', err);
+    setSyncStatus('error', syncErrorText(err));
+  });
+}
+function disconnectSync() {
+  if (syncUnsub) { syncUnsub(); syncUnsub = null; }
+  clearTimeout(pushTimer);
+  syncCode = '';
+  try { localStorage.removeItem(SYNC_KEY); } catch (e) {}
+  setSyncStatus('off');
+}
+window.addEventListener('online', () => { if (syncCode) { if (syncStatus === 'error' || syncStatus === 'offline') connectSync(syncCode); else if (syncMeta().dirty) pushToCloud(); } });
+window.addEventListener('offline', () => { if (syncCode) setSyncStatus('offline'); });
+
+function renderSyncCard() {
+  const dot = document.getElementById('sync-dot'), txt = document.getElementById('sync-text'), body = document.getElementById('sync-body');
+  if (!dot) return;
+  const map = { off: ['', '사용 안 함'], connecting: ['wait', '연결 중…'], online: ['on', '동기화됨'], offline: ['wait', '오프라인'], error: ['err', '오류'] };
+  dot.className = 'dot ' + map[syncStatus][0];
+  txt.textContent = map[syncStatus][1];
+  document.getElementById('data-hint').textContent = syncCode ? '기록이 이 기기와 클라우드에 함께 저장돼요. 가끔 백업 파일도 받아두면 더 안전해요.' : '지금은 이 기기에만 저장돼요. 기기를 바꾸기 전에 백업하거나 클라우드 동기화를 켜 주세요.';
+  if (syncCode) {
+    body.innerHTML = `
+      <div class="sync-code">${fmtCode(syncCode)}</div>
+      <div class="hint" style="margin:0 0 12px">다른 기기에서 이 코드를 입력하면 같은 기록을 볼 수 있어요. 코드를 아는 사람은 기록을 볼 수 있으니 공유하지 마세요.</div>
+      ${syncError ? `<div class="hint" style="color:var(--miss);margin:-4px 0 12px">${esc(syncError)}</div>` : ''}
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn sm" id="sync-copy">코드 복사</button>
+        <button class="btn sm" id="sync-now">지금 동기화</button>
+        <button class="btn sm danger" id="sync-off">동기화 끄기</button>
+      </div>`;
+    body.querySelector('#sync-copy').onclick = () => navigator.clipboard?.writeText(fmtCode(syncCode)).then(() => toast('코드를 복사했어요'), () => toast(fmtCode(syncCode)));
+    body.querySelector('#sync-now').onclick = () => connectSync(syncCode);
+    body.querySelector('#sync-off').onclick = () => {
+      if (!confirm('이 기기의 동기화를 끌까요? 기록은 이 기기와 클라우드에 그대로 남아요.')) return;
+      disconnectSync(); toast('동기화를 껐어요');
+    };
+  } else {
+    body.innerHTML = `
+      <p class="hint" style="margin:-6px 0 14px">휴대폰·PC 등 여러 기기에서 같은 기록을 실시간으로 이어서 쓸 수 있어요.</p>
+      <button class="btn primary block" id="sync-create">${icon('plus')}새 동기화 코드 만들기</button>
+      <div class="card-sub" style="text-align:center;margin:12px 0">또는 다른 기기에서 만든 코드 입력</div>
+      <div class="input-row">
+        <input class="input" id="sync-input" placeholder="XXXX-XXXX" autocapitalize="characters" autocomplete="off" spellcheck="false">
+        <button class="btn" style="flex:none" id="sync-join">연결</button>
+      </div>`;
+    body.querySelector('#sync-create').onclick = () => {
+      if (!confirm('이 기기의 기록으로 새 클라우드 공간을 만들까요?')) return;
+      connectSync(genSyncCode(), 'create');
+    };
+    body.querySelector('#sync-join').onclick = () => {
+      const c = body.querySelector('#sync-input').value;
+      if (normCode(c).length < 6) { toast('코드를 입력해 주세요'); return; }
+      if (!confirm('클라우드의 기록으로 이 기기 기록을 바꿀까요? (이 기기 기록은 사라져요)')) return;
+      connectSync(c, 'join');
+    };
+  }
 }
 
 /* =====================================================================
@@ -1521,7 +1710,7 @@ document.getElementById('import-file').addEventListener('change', async e => {
   } catch (err) { toast('이 앱의 백업 파일이 아니에요'); }
 });
 document.getElementById('reset-btn').addEventListener('click', () => {
-  if (!confirm('모든 기록을 삭제할까요? 되돌릴 수 없어요.')) return;
+  if (!confirm(syncCode ? '모든 기록을 삭제할까요? 동기화된 다른 기기와 클라우드에서도 지워지고, 되돌릴 수 없어요.' : '모든 기록을 삭제할까요? 되돌릴 수 없어요.')) return;
   state = structuredClone(DEFAULT_STATE); linkCache = null; save(); saveLink(); render(); toast('초기화했어요');
 });
 
@@ -1531,6 +1720,7 @@ matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', renderTh
 
 renderTheme();
 go('home');
+if (syncCode) connectSync(syncCode);
 
 // 연동되어 있으면 6시간마다 조용히 새로고침
 if (state.settings.linkCode && linkCache?.source === 'cloud' && Date.now() - linkCache.fetchedAt > 6 * 3600 * 1000) syncGagyebu(state.settings.linkCode, true);
