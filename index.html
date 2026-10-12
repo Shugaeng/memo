@@ -263,6 +263,9 @@ button { cursor: pointer; }
 .field label { display: block; font-size: 12px; font-weight: 600; color: var(--text-2); margin-bottom: 6px; }
 .input, .textarea, select.input { width: 100%; background: var(--surface-2); border: 1px solid var(--line); border-radius: 14px; padding: 13px 14px; font-size: 16px; outline: none; transition: border-color .15s; }
 .input:focus, .textarea:focus { border-color: var(--accent); }
+.input, .textarea { min-width: 0; max-width: 100%; display: block; }
+input[type="date"].input, input[type="month"].input { -webkit-appearance: none; appearance: none; text-align: left; min-height: 50px; }
+input[type="date"].input::-webkit-date-and-time-value, input[type="month"].input::-webkit-date-and-time-value { text-align: left; }
 .textarea { min-height: 120px; resize: vertical; line-height: 1.6; }
 .input-row { display: flex; gap: 8px; }
 .input-row > * { flex: 1; }
@@ -599,7 +602,7 @@ function icon(name, extra = '') {
    가계부 연동 데이터는 월별 합계만 캐시(원본 거래내역은 저장하지 않음).
    ===================================================================== */
 // 배포할 때마다 올리고, service-worker.js의 CACHE_NAME도 같은 버전으로 맞춘다
-const APP_VERSION = '1.2.1';
+const APP_VERSION = '1.2.2';
 const KEY = 'moa_data_v1';
 const LINK_KEY = 'moa_gagyebu_cache_v1';
 const THEME_KEY = 'moa_theme';
@@ -1360,12 +1363,22 @@ function openMonthSheet(ym = NOW_YM()) {
     <div class="field"><label>이 달의 목표 (비워두면 기본 ${won(state.settings.monthlyTarget)})</label>
       <input class="input" id="f-target" inputmode="numeric" placeholder="${state.settings.monthlyTarget.toLocaleString('ko-KR')}" value="${rec.target != null ? rec.target.toLocaleString('ko-KR') : ''}">
     </div>
-    <div class="sheet-actions"><button class="btn" id="f-cancel">취소</button><button class="btn primary" id="f-save">저장</button></div>`,
+    <div class="sheet-actions">${state.months[ym] ? '<button class="btn danger" id="f-del">삭제</button>' : '<button class="btn" id="f-cancel">취소</button>'}<button class="btn primary" id="f-save">저장</button></div>`,
   root => {
     const sv = root.querySelector('#f-saved'), tg = root.querySelector('#f-target'), ymEl = root.querySelector('#f-ym');
     moneyInput(sv); moneyInput(tg); bindQuick(root, sv);
     ymEl.addEventListener('change', () => { if (ymEl.value) openMonthSheet(ymEl.value); });
-    root.querySelector('#f-cancel').onclick = closeSheet;
+    root.querySelector('#f-cancel')?.addEventListener('click', closeSheet);
+    root.querySelector('#f-del')?.addEventListener('click', () => {
+      // 직접 입력한 저금액·목표를 지우면 자동 계산값(계좌/가계부)과 기본 목표로 돌아간다
+      const backup = state.months[ym];
+      delete state.months[ym];
+      const auto = monthSaved(ym).value;
+      state.months[ym] = backup;
+      if (!confirm(`${ymLabel(ym)} 기록을 삭제할까요?` + (auto != null ? `\n삭제하면 자동 계산값 ${won(auto)}이 저금액으로 쓰여요.` : ''))) return;
+      delete state.months[ym];
+      save(); closeSheet(); render(); toast(`${mLabel(ym)} 기록을 삭제했어요`);
+    });
     root.querySelector('#f-save').onclick = () => {
       const y = ymEl.value || ym;
       const s = sv.value.trim() === '' ? null : parseNum(sv.value);
