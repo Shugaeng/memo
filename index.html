@@ -174,6 +174,10 @@ button { cursor: pointer; }
 .ym-cell.miss .s { color: var(--miss); }
 .ym-cell.now { outline: 2px solid var(--text); outline-offset: 1px; }
 .ym-cell.empty .s { color: var(--muted); }
+.ym-cell.future { opacity: .45; border-style: dashed; background: transparent; }
+.year-nav { width: 28px; height: 28px; border-radius: 9px; border: 1px solid var(--line); background: var(--surface-2); color: var(--text-2); display: grid; place-items: center; padding: 0; }
+.year-nav svg { width: 14px; height: 14px; }
+.year-nav:disabled { opacity: .3; }
 
 /* ---------- stats tiles ---------- */
 .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
@@ -373,7 +377,11 @@ details.table-view td:first-child, details.table-view th:first-child { text-alig
 
     <div class="card">
       <div class="card-head">
-        <h2 class="card-title">최근 12개월 달성 기록</h2>
+        <div style="display:flex;align-items:center;gap:6px">
+          <button class="year-nav" id="year-prev" aria-label="이전 연도"></button>
+          <h2 class="card-title" id="year-title"></h2>
+          <button class="year-nav" id="year-next" aria-label="다음 연도"></button>
+        </div>
         <span class="card-sub" id="year-summary"></span>
       </div>
       <div class="year-grid" id="year-grid"></div>
@@ -581,6 +589,8 @@ const IC = {
   book: '<path d="M4 19.5V5a2 2 0 0 1 2-2h14v16H6.5A2.5 2.5 0 0 0 4 21.5 2.5 2.5 0 0 0 6.5 24"/><path d="M8 7h8M8 11h6"/>',
   gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68 1.65 1.65 0 0 0 10 3.17V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
+  left: '<path d="m15 18-6-6 6-6"/>',
+  right: '<path d="m9 18 6-6-6-6"/>',
   wallet: '<path d="M20 7V5a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H5a2 2 0 0 1-2-2V6"/><path d="M17 13.5h.01"/>',
   swap: '<path d="M7 4 3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7"/>',
   check: '<path d="M20 6 9 17l-5-5"/>',
@@ -602,7 +612,7 @@ function icon(name, extra = '') {
    가계부 연동 데이터는 월별 합계만 캐시(원본 거래내역은 저장하지 않음).
    ===================================================================== */
 // 배포할 때마다 올리고, service-worker.js의 CACHE_NAME도 같은 버전으로 맞춘다
-const APP_VERSION = '1.2.5';
+const APP_VERSION = '1.2.6';
 const KEY = 'moa_data_v1';
 const LINK_KEY = 'moa_gagyebu_cache_v1';
 const THEME_KEY = 'moa_theme';
@@ -979,6 +989,14 @@ function animateRings(root) {
 /* =====================================================================
    렌더 — 홈
    ===================================================================== */
+let homeYear = new Date().getFullYear();
+function firstDataYear() {
+  // 기록(월 기록·계좌·가계부·목표 납입)이 있는 가장 이른 연도. 없으면 올해
+  const dates = [...Object.keys(state.months), ...Object.keys(linkCache?.monthly || {}),
+    ...state.accounts.flatMap(a => (a.txs || []).map(t => t.date)), ...state.goals.flatMap(g => (g.deposits || []).map(d => d.date))];
+  const ys = dates.map(d => Number(String(d).slice(0, 4))).filter(y => y > 1900);
+  return Math.min(new Date().getFullYear(), ...ys);
+}
 function renderHome() {
   const ym = NOW_YM();
   const info = monthInfo(ym);
@@ -1016,8 +1034,15 @@ function renderHome() {
   document.getElementById('hero-record-btn').innerHTML = `${icon('coin')}저금액 기록`;
   document.getElementById('hero-target-btn').innerHTML = `${icon('target')}목표`;
 
-  // 12개월 그리드
-  const months = lastMonths(12);
+  // 연도별 달성 그리드 (1월~12월)
+  const nowY = new Date().getFullYear();
+  if (homeYear > nowY) homeYear = nowY;
+  const months = Array.from({ length: 12 }, (_, k) => `${homeYear}-${pad(k + 1)}`);
+  document.getElementById('year-title').textContent = `${homeYear}년 달성 기록`;
+  document.getElementById('year-prev').innerHTML = icon('left');
+  document.getElementById('year-next').innerHTML = icon('right');
+  document.getElementById('year-prev').disabled = homeYear <= firstDataYear();
+  document.getElementById('year-next').disabled = homeYear >= nowY;
   const hits = months.filter(m => monthStatus(m) === 'hit').length;
   const judged = months.filter(m => ['hit', 'miss'].includes(monthStatus(m))).length;
   document.getElementById('year-summary').textContent = judged ? `${judged}개월 중 ${hits}번 달성` : '아직 기록이 없어요';
@@ -1026,6 +1051,7 @@ function renderHome() {
     const fill = Math.max(0, Math.min(1, i.rate || 0)) * 100;
     const st = i.status === 'hit' ? icon('check') + Math.round(i.rate * 100) + '%' : i.status === 'miss' ? icon('x') + Math.round((i.rate || 0) * 100) + '%' : i.rate != null ? Math.round(i.rate * 100) + '%' : '–';
     const tip = tipRows(ymLabel(m), [['저금', won(i.saved)], ['목표', won(i.target)]]);
+    if (m > NOW_YM()) return `<div class="ym-cell future"><div class="m">${mLabel(m)}</div><div class="s"></div></div>`;
     return `<div class="ym-cell ${i.status} ${m === NOW_YM() ? 'now' : ''}" data-tip="${esc(tip)}" data-edit-month="${m}"><div class="fill" style="height:${fill}%"></div><div class="m">${mLabel(m)}</div><div class="s">${st}</div></div>`;
   }).join('');
 
@@ -1993,6 +2019,8 @@ document.getElementById('add-goal-btn').innerHTML = icon('plus');
 document.querySelectorAll('#nav button').forEach(b => b.addEventListener('click', () => go(b.dataset.view)));
 document.getElementById('fab').addEventListener('click', openFabMenu);
 document.getElementById('hero-record-btn').addEventListener('click', () => openMonthSheet());
+document.getElementById('year-prev').addEventListener('click', () => { homeYear--; renderHome(); });
+document.getElementById('year-next').addEventListener('click', () => { homeYear++; renderHome(); });
 document.getElementById('hero-target-btn').addEventListener('click', () => openMonthSheet());
 document.getElementById('add-goal-btn').addEventListener('click', () => stashPane === 'accounts' ? openAccountSheet() : openGoalSheet());
 document.getElementById('stash-seg').addEventListener('click', e => {
