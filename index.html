@@ -602,7 +602,7 @@ function icon(name, extra = '') {
    가계부 연동 데이터는 월별 합계만 캐시(원본 거래내역은 저장하지 않음).
    ===================================================================== */
 // 배포할 때마다 올리고, service-worker.js의 CACHE_NAME도 같은 버전으로 맞춘다
-const APP_VERSION = '1.2.3';
+const APP_VERSION = '1.2.4';
 const KEY = 'moa_data_v1';
 const LINK_KEY = 'moa_gagyebu_cache_v1';
 const THEME_KEY = 'moa_theme';
@@ -772,7 +772,8 @@ function accountsNetInflow(ym) {
 }
 
 /* ---------- 목표 (계좌 연결 시 연결 계좌 잔액 합계가 모은 돈) ---------- */
-const goalAccounts = g => (g.accountIds || []).map(acctById).filter(Boolean);
+const goalAccounts = g => (g.accountIds || []).includes('*') ? state.accounts : (g.accountIds || []).map(acctById).filter(Boolean);
+const goalAccountLabel = g => (g.accountIds || []).includes('*') ? '전체 계좌' : goalAccounts(g).map(a => a.name).join(', ');
 function goalSaved(g, until) {
   const accs = goalAccounts(g);
   if (accs.length) return accs.reduce((s, a) => s + acctBalance(a, until), 0);
@@ -861,11 +862,12 @@ function savedBarsLegend() {
 }
 
 /* ---------- 선: 범용 라인 차트 (크로스헤어 + 툴팁) ---------- */
-function renderLine(el, { labels, series, fmtAxis = man, fmtTip = won, refLine = null, title = '' }) {
+function renderLine(el, { labels, series, fmtAxis = man, fmtTip = won, refLine = null, title = '', emptyMax = 40000 }) {
   const W = chartWidth(el), H = 190, padL = 38, padR = 8, padT = 12, padB = 24;
   const all = series.flatMap(s => s.values.filter(v => v != null));
   if (refLine != null) all.push(refLine);
-  const maxV = niceMax(Math.max(...all, 1));
+  const peak = Math.max(...all, 0);
+  const maxV = niceMax(peak > 0 ? peak : emptyMax);   // 값이 모두 0이면 소수 눈금(1,1,0…) 대신 기본 범위
   const minRaw = Math.min(0, ...all);
   const lo = minRaw < 0 ? -niceMax(-minRaw) : 0;
   const n = labels.length;
@@ -929,7 +931,7 @@ function renderLine(el, { labels, series, fmtAxis = man, fmtTip = won, refLine =
 /* ---------- 묶음 막대: 수입 vs 지출 ---------- */
 function renderGroupedBars(el, labels, a, b, names) {
   const W = chartWidth(el), H = 190, padL = 38, padR = 4, padT = 10, padB = 24;
-  const maxV = niceMax(Math.max(1, ...a, ...b));
+  const maxV = niceMax(Math.max(0, ...a, ...b) || 40000);
   const y = v => padT + (H - padT - padB) * (1 - v / maxV);
   const n = labels.length, slot = (W - padL - padR) / n;
   const bw = Math.min(14, Math.max(4, slot * 0.3));
@@ -1124,7 +1126,7 @@ function renderLinkedReport(months, labels) {
     </div>`;
   renderGroupedBars(document.getElementById('r-io'), labels, inc, exp, ['수입', '지출']);
   renderLine(document.getElementById('r-ratio'), {
-    labels, title: '저축률', fmtAxis: v => Math.round(v) + '%', fmtTip: v => v == null ? '-' : v + '%',
+    labels, title: '저축률', emptyMax: 100, fmtAxis: v => Math.round(v) + '%', fmtTip: v => v == null ? '-' : v + '%',
     series: [{ name: '저축률', values: ratio, color: 'var(--series-1)', area: true }],
   });
 }
@@ -1156,7 +1158,7 @@ function goalCard(g) {
   return `<div class="card goal" data-goal="${g.id}">
     <div class="goal-top">
       <div class="goal-emoji">${esc(g.emoji || '🎯')}</div>
-      <div style="min-width:0"><div class="goal-name">${esc(g.name)}</div><div class="goal-dl">${g.deadline ? `${g.deadline.replace(/-/g, '.')}까지` : '기한 없음'}${goalAccounts(g).length ? ` · ${goalAccounts(g).map(a => esc(a.name)).join(', ')}` : ''}</div></div>
+      <div style="min-width:0"><div class="goal-name">${esc(g.name)}</div><div class="goal-dl">${g.deadline ? `${g.deadline.replace(/-/g, '.')}까지` : '기한 없음'}${goalAccounts(g).length ? ` · ${esc(goalAccountLabel(g))}` : ''}</div></div>
       <div class="goal-pct">${Math.round(p.pct * 100)}%</div>
     </div>
     <div class="progress"><div style="width:${Math.min(100, p.pct * 100)}%;${done ? '' : onTrack ? '' : 'background:var(--miss)'}"></div></div>
@@ -1164,6 +1166,7 @@ function goalCard(g) {
       <span><b>${man(p.saved)}</b> / ${man(g.target)}원</span>
       <span>${done ? '🎉 달성 완료' : p.needPerMonth != null ? `월 <b>${man(p.needPerMonth)}원</b>씩 필요` : p.eta ? `${ymLabel(p.eta)} 예상` : goalAccounts(g).length ? '계좌 잔액 기준' : '납입 기록을 남겨보세요'}</span>
     </div>
+    ${state.accounts.length && !goalAccounts(g).length && !g.deposits.length ? `<div class="banner" style="margin:14px 0 0;padding:12px 14px;background:var(--surface-2);border-color:var(--line)"><span style="font-size:13px;color:var(--text-2)">계좌와 연결하면 잔액이 자동으로 반영돼요</span><button class="btn sm primary" data-link-goal="${g.id}">계좌 연결하기</button></div>` : ''}
   </div>`;
 }
 let stashPane = 'accounts';
@@ -1233,7 +1236,10 @@ function renderGoals() {
   const tot = goals.reduce((a, g) => a + g.target, 0), sv = goals.reduce((a, g) => a + Math.min(g.target, goalSaved(g)), 0);
   // 누적 납입 추이 (최근 12개월, 목표별 합산)
   const months = lastMonths(12);
-  const cum = months.map(m => goals.reduce((a, g) => a + goalSaved(g, monthEnd(m)), 0));
+  // 계좌 연결 목표는 계좌 등록 전 달, 납입 목표는 첫 납입 전 달을 '기록 없음'으로 처리
+  const perGoal = goals.map(g => goalAccounts(g).length ? balanceSeries(goalAccounts(g), months)
+    : months.map(m => g.deposits.some(d => d.date <= monthEnd(m)) ? goalSaved(g, monthEnd(m)) : null));
+  const cum = months.map((m, i) => perGoal.every(v => v[i] == null) ? null : perGoal.reduce((a, v) => a + (v[i] || 0), 0));
   ov.innerHTML = `<div class="card-head"><h2 class="card-title">전체 목표 진행</h2><span class="card-sub">${goals.length}개 목표</span></div>
     <div style="display:flex;align-items:baseline;gap:8px"><div class="hero-amount">${man(sv)}<span class="unit">원</span></div><div class="hero-target">/ ${man(tot)}원 · ${tot ? Math.round(sv / tot * 100) : 0}%</div></div>
     <div class="progress"><div style="width:${tot ? Math.min(100, sv / tot * 100) : 0}%"></div></div>
@@ -1241,6 +1247,7 @@ function renderGoals() {
     <div class="chart" id="goals-cum"></div>`;
   const labels = months.map(m => axisMonth(m, months.length)); labels.full = months.map(ymLabel);
   renderLine(document.getElementById('goals-cum'), { labels, title: '목표 저금 누적', series: [{ name: '모인 돈', values: cum, color: 'var(--accent)', area: true }] });
+  if (cum.filter(v => v != null).length < 2) document.getElementById('goals-cum').insertAdjacentHTML('beforeend', '<div class="hint" style="text-align:center">기록이 시작된 달부터 보여요. 다음 달부터 추이가 이어져요.</div>');
   document.getElementById('goals-list').innerHTML = goals.map(goalCard).join('');
 }
 
@@ -1618,11 +1625,16 @@ function openGoalSheet(existing) {
     <div class="field"><label>이름</label><input class="input" id="f-name" value="${esc(g.name || '')}" placeholder="예: 제주도 여행"></div>
     <div class="field"><label>목표 금액</label><input class="input" id="f-amount" inputmode="numeric" value="${g.target ? g.target.toLocaleString('ko-KR') : ''}" placeholder="0"></div>
     <div class="field"><label>목표 시점 (선택)</label><input class="input" type="month" id="f-deadline" value="${g.deadline || ''}"></div>
-    ${state.accounts.length ? `<div class="field"><label>연결할 계좌 (선택)</label><div class="pills" id="f-accts">${state.accounts.map(a => `<button type="button" data-id="${a.id}" class="${(g.accountIds || []).includes(a.id) ? 'on' : ''}"><i style="display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;background:${acctColor(a)}"></i>${esc(a.name)}</button>`).join('')}</div><div class="hint">계좌를 연결하면 그 계좌 잔액 합계가 목표에 모인 돈이 돼요.</div></div>` : ''}
+    ${state.accounts.length ? `<div class="field"><label>연결할 계좌 (선택)</label><div class="pills" id="f-accts"><button type="button" data-id="*" class="${(g.accountIds || []).includes('*') ? 'on' : ''}">전체 계좌</button>${state.accounts.map(a => `<button type="button" data-id="${a.id}" class="${(g.accountIds || []).includes(a.id) ? 'on' : ''}"><i style="display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;background:${acctColor(a)}"></i>${esc(a.name)}</button>`).join('')}</div><div class="hint">연결한 계좌 잔액 합계가 목표에 모인 돈이 돼요. '전체 계좌'는 나중에 추가하는 계좌도 포함해요.</div></div>` : ''}
     <div class="sheet-actions">${g.id ? '<button class="btn danger" id="f-del">삭제</button>' : '<button class="btn" id="f-cancel">취소</button>'}<button class="btn primary" id="f-save">저장</button></div>`,
   root => {
     let emoji = g.emoji || '🎯';
-    root.querySelectorAll('#f-accts button').forEach(b => b.onclick = () => b.classList.toggle('on'));
+    root.querySelectorAll('#f-accts button').forEach(b => b.onclick = () => {
+      const on = !b.classList.contains('on');
+      // '전체 계좌'와 개별 계좌는 함께 고를 수 없음
+      root.querySelectorAll('#f-accts button').forEach(x => { if (x !== b && (b.dataset.id === '*' || x.dataset.id === '*')) x.classList.remove('on'); });
+      b.classList.toggle('on', on);
+    });
     root.querySelectorAll('#f-emoji button').forEach(b => b.onclick = () => { emoji = b.textContent; root.querySelectorAll('#f-emoji button').forEach(x => x.classList.toggle('on', x === b)); });
     moneyInput(root.querySelector('#f-amount'));
     root.querySelector('#f-cancel')?.addEventListener('click', closeSheet);
@@ -1656,7 +1668,7 @@ function openGoalDetail(id) {
         ${p.eta ? `<div class="row"><span>현재 속도면</span><b>${ymLabel(p.eta)}</b></div>` : ''}
       </div>
     </div>
-    ${goalAccounts(g).length ? `<div class="card-sub" style="margin:18px 0 4px">연결된 계좌</div>${goalAccounts(g).map(a => `<div class="list-row" data-acct="${a.id}" style="cursor:pointer"><div class="acct-badge" style="width:32px;height:32px;border-radius:10px;font-size:13px;background:${acctColor(a)}">${esc(a.name.slice(0, 1))}</div><div class="grow"><div>${esc(a.name)}</div><div class="sub">${esc(a.kind)}</div></div><div class="amt">${won(acctBalance(a))}</div></div>`).join('')}<div class="hint">입출금은 계좌에서 기록하면 목표에 자동 반영돼요.</div>` : `
+    ${goalAccounts(g).length ? `<div class="card-sub" style="margin:18px 0 4px">연결된 계좌${(g.accountIds || []).includes('*') ? ' (전체)' : ''}</div>${goalAccounts(g).map(a => `<div class="list-row" data-acct="${a.id}" style="cursor:pointer"><div class="acct-badge" style="width:32px;height:32px;border-radius:10px;font-size:13px;background:${acctColor(a)}">${esc(a.name.slice(0, 1))}</div><div class="grow"><div>${esc(a.name)}</div><div class="sub">${esc(a.kind)}</div></div><div class="amt">${won(acctBalance(a))}</div></div>`).join('')}<div class="hint">입출금은 계좌에서 기록하면 목표에 자동 반영돼요.</div>` : `
     <div class="field" style="margin-top:18px"><label>납입하기</label>
       <div class="input-row"><input class="input" id="d-amt" inputmode="numeric" placeholder="금액 (출금은 -)"><input class="input" type="date" id="d-date" value="${todayStr()}"></div>
       ${quickAmounts(0, [50000, 100000, 300000, 1000000])}
@@ -1988,6 +2000,7 @@ document.addEventListener('click', e => {
   const t = e.target;
   const r = t.closest('[data-reflect]'); if (r) { openReflectSheet(r.dataset.reflect); return; }
   const em = t.closest('[data-edit-month]'); if (em) { openMonthSheet(em.dataset.editMonth); return; }
+  const lg = t.closest('[data-link-goal]'); if (lg) { const g = state.goals.find(x => x.id === lg.dataset.linkGoal); if (g) openGoalSheet(g); return; }
   const gd = t.closest('[data-goal]'); if (gd && !t.closest('.sheet')) { openGoalDetail(gd.dataset.goal); return; }
   const ac = t.closest('[data-acct]'); if (ac) { openAccountDetail(ac.dataset.acct); return; }
   const gp = t.closest('[data-goto-pane]'); if (gp) { stashPane = gp.dataset.gotoPane; go('goals'); return; }
