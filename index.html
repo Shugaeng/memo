@@ -104,7 +104,7 @@ body {
 button, input, textarea, select { font: inherit; color: inherit; letter-spacing: inherit; }
 button { cursor: pointer; }
 
-.app { max-width: 560px; margin: 0 auto; padding: calc(env(safe-area-inset-top) + 20px) 16px calc(env(safe-area-inset-bottom) + 96px); }
+.app { max-width: 560px; margin: 0 auto; padding: calc(env(safe-area-inset-top) + 20px) 16px calc(env(safe-area-inset-bottom) + 168px); }
 
 /* ---------- header ---------- */
 .top { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 20px; }
@@ -602,7 +602,7 @@ function icon(name, extra = '') {
    가계부 연동 데이터는 월별 합계만 캐시(원본 거래내역은 저장하지 않음).
    ===================================================================== */
 // 배포할 때마다 올리고, service-worker.js의 CACHE_NAME도 같은 버전으로 맞춘다
-const APP_VERSION = '1.2.2';
+const APP_VERSION = '1.2.3';
 const KEY = 'moa_data_v1';
 const LINK_KEY = 'moa_gagyebu_cache_v1';
 const THEME_KEY = 'moa_theme';
@@ -741,6 +741,15 @@ function acctBalance(a, untilDate = '9999-12-31') {
     if (t.type === 'in') b += t.amount; else if (t.type === 'out') b -= t.amount; else if (t.type === 'set') b = t.amount;
   }
   return b;
+}
+const acctStart = a => (a.txs || []).reduce((m, t) => !m || t.date < m ? t.date : m, null);
+function balanceSeries(accs, months) {
+  // 월말 잔액 (이번 달은 오늘 기준). 아직 등록 전인 계좌는 빼고, 등록된 계좌가 하나도 없는 달은 null
+  return months.map(m => {
+    const until = m === NOW_YM() ? '9999-12-31' : monthEnd(m);
+    const live = accs.filter(a => { const st = acctStart(a); return st && st <= until; });
+    return live.length ? live.reduce((s, a) => s + acctBalance(a, until), 0) : null;
+  });
 }
 const monthEnd = ym => `${ym}-${pad(daysInMonth(ym))}`;
 const totalBalance = (until) => state.accounts.reduce((s, a) => s + acctBalance(a, until), 0);
@@ -1126,7 +1135,10 @@ function renderLinkedReport(months, labels) {
 function goalProjection(g) {
   const saved = goalSaved(g), remain = Math.max(0, g.target - saved);
   // 최근 3개월 평균 납입 속도로 완료 예상
-  const recent = (saved - goalSaved(g, monthEnd(addMonths(NOW_YM(), -3)))) / 3;
+  const accs = goalAccounts(g);
+  const recent = accs.length
+    ? [0, 1, 2].reduce((s, k) => s + accs.reduce((x, a) => x + acctFlow(a, addMonths(NOW_YM(), -k), true).net, 0), 0) / 3
+    : g.deposits.filter(d => d.date.slice(0, 7) >= addMonths(NOW_YM(), -2)).reduce((a, d) => a + d.amount, 0) / 3;
   let monthsLeft = null, needPerMonth = null;
   if (g.deadline) {
     const [y, m] = g.deadline.split('-').map(Number);
@@ -1169,8 +1181,10 @@ function renderStash() {
 function accountsSummaryHTML() {
   const accs = state.accounts.map(a => ({ a, b: acctBalance(a) }));
   const total = accs.reduce((s, x) => s + x.b, 0);
-  const prev = totalBalance(monthEnd(addMonths(NOW_YM(), -1)));
-  const diff = total - prev;
+  // 지난달 말에도 있던 계좌만 비교 (이번 달 등록한 계좌의 시작 잔액은 '늘어난 돈'이 아님)
+  const prevEnd = monthEnd(addMonths(NOW_YM(), -1));
+  const old = accs.filter(x => { const st = acctStart(x.a); return st && st <= prevEnd; });
+  const diff = old.length ? old.reduce((s, x) => s + x.b - acctBalance(x.a, prevEnd), 0) : 0;
   const pos = accs.filter(x => x.b > 0);
   const posSum = pos.reduce((s, x) => s + x.b, 0);
   return `<div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><div class="hero-amount">${Math.round(total).toLocaleString('ko-KR')}<span class="unit">원</span></div>
@@ -1180,7 +1194,7 @@ function accountsSummaryHTML() {
 }
 function acctCard(a) {
   const b = acctBalance(a), f = acctFlow(a, NOW_YM(), true);
-  const meta = [a.kind, a.rate ? `연 ${a.rate}%` : '', a.maturity ? `${a.maturity.replace('-', '.')} 만기` : ''].filter(Boolean).join(' · ');
+  const meta = [a.kind, a.rate ? `연 ${a.rate}%` : '', a.maturity ? `${a.maturity.replace('-', '.')} 만기${a.maturity < NOW_YM() ? '(지남)' : ''}` : ''].filter(Boolean).join(' · ');
   return `<div class="card acct" data-acct="${a.id}">
     <div class="acct-top">
       <div class="acct-badge" style="background:${acctColor(a)}">${esc(a.name.slice(0, 1))}</div>
@@ -1202,7 +1216,9 @@ function renderAccounts() {
     ${accountsSummaryHTML()}
     <div class="card-sub" style="margin:18px 0 6px">전체 잔액 추이 (월말 기준)</div>
     <div class="chart" id="acct-total-line"></div>`;
-  renderLine(document.getElementById('acct-total-line'), { labels, title: '전체 잔액 추이', series: [{ name: '전체 잔액', values: months.map(m => m === NOW_YM() ? totalBalance() : totalBalance(monthEnd(m))), color: 'var(--accent)', area: true }] });
+  const totals = balanceSeries(state.accounts, months);
+  renderLine(document.getElementById('acct-total-line'), { labels, title: '전체 잔액 추이', series: [{ name: '전체 잔액', values: totals, color: 'var(--accent)', area: true }] });
+  if (totals.filter(v => v != null).length < 2) document.getElementById('acct-total-line').insertAdjacentHTML('beforeend', '<div class="hint" style="text-align:center">등록한 달부터 기록돼요. 다음 달부터 추이가 이어져요.</div>');
   list.innerHTML = state.accounts.map(acctCard).join('');
 }
 
@@ -1550,7 +1566,7 @@ function openAccountDetail(id, txType = 'in') {
       return `<div class="list-row"><div class="grow"><div>${label}</div><div class="sub">${t.date.replace(/-/g, '.')}${t.transferId && t.memo ? ' · ' + esc(t.memo) : ''}</div></div><div class="amt">${amt}</div><button class="icon-btn" style="width:32px;height:32px" data-del-tx="${t.id}" aria-label="삭제">${icon('x')}</button></div>`;
     }).join('') : '<div class="empty-state">아직 거래 기록이 없어요</div>'}</div>`,
   root => {
-    renderLine(root.querySelector('#a-line'), { labels, title: `${a.name} 잔액 추이`, series: [{ name: '잔액', values: months.map(m => m === NOW_YM() ? acctBalance(a) : acctBalance(a, monthEnd(m))), color: acctColor(a), area: true }] });
+    renderLine(root.querySelector('#a-line'), { labels, title: `${a.name} 잔액 추이`, series: [{ name: '잔액', values: balanceSeries([a], months), color: acctColor(a), area: true }] });
     root.querySelector('#a-edit').onclick = () => openAccountSheet(a);
     let type = txType;
     const amt = root.querySelector('#t-amt'), hint = root.querySelector('#t-hint');
