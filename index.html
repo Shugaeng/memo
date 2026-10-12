@@ -387,14 +387,6 @@ details.table-view td:first-child, details.table-view th:first-child { text-alig
       <div class="year-grid" id="year-grid"></div>
     </div>
 
-    <div class="card">
-      <div class="card-head">
-        <h2 class="card-title">월별 저금액과 목표</h2>
-        <span class="card-sub">최근 6개월</span>
-      </div>
-      <div class="legend" id="home-bars-legend"></div>
-      <div class="chart" id="home-bars"></div>
-    </div>
 
     <div class="section-label">진행 중인 목표</div>
     <div id="home-goals"></div>
@@ -612,7 +604,7 @@ function icon(name, extra = '') {
    가계부 연동 데이터는 월별 합계만 캐시(원본 거래내역은 저장하지 않음).
    ===================================================================== */
 // 배포할 때마다 올리고, service-worker.js의 CACHE_NAME도 같은 버전으로 맞춘다
-const APP_VERSION = '1.2.6';
+const APP_VERSION = '1.2.7';
 const KEY = 'moa_data_v1';
 const LINK_KEY = 'moa_gagyebu_cache_v1';
 const THEME_KEY = 'moa_theme';
@@ -1055,8 +1047,6 @@ function renderHome() {
     return `<div class="ym-cell ${i.status} ${m === NOW_YM() ? 'now' : ''}" data-tip="${esc(tip)}" data-edit-month="${m}"><div class="fill" style="height:${fill}%"></div><div class="m">${mLabel(m)}</div><div class="s">${st}</div></div>`;
   }).join('');
 
-  document.getElementById('home-bars-legend').innerHTML = savedBarsLegend();
-  renderSavedBars(document.getElementById('home-bars'), lastMonths(6));
 
   // 계좌 요약
   document.getElementById('home-accounts').innerHTML = state.accounts.length ? `<div class="card" data-goto-pane="accounts" style="cursor:pointer">
