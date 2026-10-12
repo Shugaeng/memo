@@ -109,6 +109,7 @@ button { cursor: pointer; }
 /* ---------- header ---------- */
 .top { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 20px; }
 .eyebrow { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.ver { margin-left: 8px; padding: 1px 6px; border-radius: 6px; background: var(--surface-2); border: 1px solid var(--line); font-size: 10px; letter-spacing: .02em; text-transform: none; vertical-align: 1px; }
 .page-title { font-size: 26px; font-weight: 700; letter-spacing: -0.03em; margin: 2px 0 0; }
 .icon-btn { width: 40px; height: 40px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); display: grid; place-items: center; color: var(--text-2); }
 .icon-btn svg { width: 18px; height: 18px; }
@@ -341,7 +342,7 @@ details.table-view td:first-child, details.table-view th:first-child { text-alig
   <section class="view on" id="view-home">
     <header class="top">
       <div>
-        <div class="eyebrow" id="home-eyebrow"></div>
+        <div class="eyebrow"><span id="home-eyebrow"></span><span class="ver" id="app-version"></span></div>
         <h1 class="page-title">이번 달의 저금</h1>
       </div>
       <button class="icon-btn" id="theme-btn" aria-label="테마 전환"></button>
@@ -597,6 +598,8 @@ function icon(name, extra = '') {
    저장소 — 이 앱의 데이터는 이 기기의 localStorage에만 저장.
    가계부 연동 데이터는 월별 합계만 캐시(원본 거래내역은 저장하지 않음).
    ===================================================================== */
+// 배포할 때마다 올리고, service-worker.js의 CACHE_NAME도 같은 버전으로 맞춘다
+const APP_VERSION = '1.2.1';
 const KEY = 'moa_data_v1';
 const LINK_KEY = 'moa_gagyebu_cache_v1';
 const THEME_KEY = 'moa_theme';
@@ -960,6 +963,7 @@ function renderHome() {
   const info = monthInfo(ym);
   const now = new Date();
   document.getElementById('home-eyebrow').textContent = `${now.getFullYear()}. ${pad(now.getMonth() + 1)}. ${pad(now.getDate())}`;
+  document.getElementById('app-version').textContent = `v${APP_VERSION}`;
 
   // 반성 일기 배너
   const misses = unreflectedMisses();
