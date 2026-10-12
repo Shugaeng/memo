@@ -501,7 +501,7 @@ details.table-view td:first-child, details.table-view th:first-child { text-alig
       <div class="field" style="margin:16px 0 0">
         <label for="link-mode">월 저금액 자동 계산</label>
         <select class="input" id="link-mode">
-          <option value="accounts">계좌 순입금 합계 (입금 − 출금, 계좌 간 이체 제외)</option>
+          <option value="accounts">계좌 잔액 증가분 (입금·출금·잔액 수정 반영, 계좌끼리 이체 제외)</option>
           <option value="net">가계부 수입 − 지출</option>
           <option value="off">자동 계산 안 함 (직접 입력만)</option>
         </select>
@@ -604,7 +604,7 @@ function icon(name, extra = '') {
    가계부 연동 데이터는 월별 합계만 캐시(원본 거래내역은 저장하지 않음).
    ===================================================================== */
 // 배포할 때마다 올리고, service-worker.js의 CACHE_NAME도 같은 버전으로 맞춘다
-const APP_VERSION = '1.2.7';
+const APP_VERSION = '1.3.0';
 const KEY = 'moa_data_v1';
 const LINK_KEY = 'moa_gagyebu_cache_v1';
 const THEME_KEY = 'moa_theme';
@@ -618,8 +618,11 @@ const DEFAULT_STATE = {
 };
 function normalizeState(d) {
   d = d || {};
+  const settings = Object.assign({}, DEFAULT_STATE.settings, d.settings);
+  // 가계부 연동 코드 없이 '가계부' 방식으로 남아 있으면 계좌 기준으로 (초기 버전 기본값이 '가계부'였음)
+  if (settings.linkMode === 'net' && !settings.linkCode) settings.linkMode = 'accounts';
   return {
-    settings: Object.assign({}, DEFAULT_STATE.settings, d.settings),
+    settings,
     months: d.months || {},
     goals: Array.isArray(d.goals) ? d.goals : [],
     journal: Array.isArray(d.journal) ? d.journal : [],
@@ -697,8 +700,10 @@ function monthSaved(ym) {
   // 반환: { value, source: 'manual' | 'acct' | 'link' | null }
   const rec = state.months[ym];
   if (rec && rec.saved != null) return { value: rec.saved, source: 'manual' };
-  if (state.settings.linkMode === 'accounts') {
-    const v = accountsNetInflow(ym);
+  // '가계부' 방식인데 가계부 연동이 없으면 계좌 기준으로 계산
+  const mode = state.settings.linkMode === 'net' && !linkCache && state.accounts.length ? 'accounts' : state.settings.linkMode;
+  if (mode === 'accounts') {
+    const v = accountsSaved(ym);
     return v == null ? { value: null, source: null } : { value: v, source: 'acct' };
   }
   const l = linkedMonth(ym);
@@ -766,11 +771,24 @@ function acctFlow(a, ym, includeTransfers) {
   });
   return { inn, out, net: inn - out, any };
 }
-function accountsNetInflow(ym) {
-  // 이 달에 외부에서 계좌로 들어온 순금액 = 월 저금액. 계좌 간 이체는 제외. 기록이 없으면 null
-  let net = 0, any = false;
-  state.accounts.forEach(a => { const f = acctFlow(a, ym, false); if (f.any) { any = true; net += f.net; } });
-  return any ? net : null;
+function acctGrowth(a, ym) {
+  // 그달 잔액 증가분 = 월말 잔액 − 전월말 잔액. 그달에 등록한 계좌는 등록 시 '시작 잔액'을 기준으로 삼는다
+  // (원래 있던 돈은 저금이 아님). 등록 전 달은 null
+  const st = acctStart(a);
+  if (!st || st.slice(0, 7) > ym) return null;
+  const end = ym === NOW_YM() ? '9999-12-31' : monthEnd(ym);
+  const prevEnd = monthEnd(addMonths(ym, -1));
+  let base;
+  if (st > prevEnd) { const first = sortedTxs(a)[0]; base = first && first.type === 'set' ? first.amount : 0; }
+  else base = acctBalance(a, prevEnd);
+  return acctBalance(a, end) - base;
+}
+function accountsSaved(ym, accs = state.accounts) {
+  // 월 저금액(계좌 기준) = 계좌들의 잔액 증가분 합계. 입금·출금·잔액 수정이 모두 반영되고,
+  // 계좌끼리 이체는 한쪽 −, 한쪽 +로 상쇄된다. 계좌가 하나도 없던 달은 null
+  let sum = 0, any = false;
+  accs.forEach(a => { const g = acctGrowth(a, ym); if (g != null) { any = true; sum += g; } });
+  return any ? sum : null;
 }
 
 /* ---------- 목표 (계좌 연결 시 연결 계좌 잔액 합계가 모은 돈) ---------- */
@@ -1162,7 +1180,7 @@ function goalProjection(g) {
   // 최근 3개월 평균 납입 속도로 완료 예상
   const accs = goalAccounts(g);
   const recent = accs.length
-    ? [0, 1, 2].reduce((s, k) => s + accs.reduce((x, a) => x + acctFlow(a, addMonths(NOW_YM(), -k), true).net, 0), 0) / 3
+    ? [0, 1, 2].reduce((s, k) => s + (accountsSaved(addMonths(NOW_YM(), -k), accs) || 0), 0) / 3
     : g.deposits.filter(d => d.date.slice(0, 7) >= addMonths(NOW_YM(), -2)).reduce((a, d) => a + d.amount, 0) / 3;
   let monthsLeft = null, needPerMonth = null;
   if (g.deadline) {
@@ -1398,11 +1416,11 @@ function openMonthSheet(ym = NOW_YM()) {
   openSheet(`
     <h3>${ymLabel(ym)} 저금</h3>
     <p class="sheet-desc">이 달에 모은 금액과 목표를 기록해요.</p>
-    ${state.settings.linkMode === 'accounts' && accountsNetInflow(ym) != null ? `<div class="context-box"><div class="row"><span>계좌 순입금 (이체 제외)</span><b>${won(accountsNetInflow(ym))}</b></div></div>` : ''}
+    ${monthSaved(ym).source === 'acct' || (rec.saved != null && accountsSaved(ym) != null) ? `<div class="context-box"><div class="row"><span>계좌 잔액 증가분</span><b>${won(accountsSaved(ym))}</b></div></div>` : ''}
     ${l ? `<div class="context-box"><div class="row"><span>가계부 수입</span><b>${won(l.income)}</b></div><div class="row"><span>가계부 지출</span><b>${won(l.expense)}</b></div><div class="row"><span>수입 − 지출</span><b>${won(l.income - l.expense)}</b></div></div>` : ''}
     <div class="field"><label>월 선택</label><input class="input" type="month" id="f-ym" value="${ym}"></div>
     <div class="field"><label>저금액 ${monthSaved(ym).source && monthSaved(ym).source !== 'manual' ? '(비워두면 자동 계산값 사용)' : ''}</label>
-      <input class="input" id="f-saved" inputmode="numeric" placeholder="${(() => { const a = state.settings.linkMode === 'accounts' ? accountsNetInflow(ym) : l && state.settings.linkMode === 'net' ? l.income - l.expense : null; return a != null ? won(a) : '0'; })()}" value="${rec.saved != null ? rec.saved.toLocaleString('ko-KR') : ''}">
+      <input class="input" id="f-saved" inputmode="numeric" placeholder="${(() => { const a = accountsSaved(ym) != null && state.settings.linkMode !== 'off' && !(l && state.settings.linkMode === 'net') ? accountsSaved(ym) : l && state.settings.linkMode === 'net' ? l.income - l.expense : null; return a != null ? won(a) : '0'; })()}" value="${rec.saved != null ? rec.saved.toLocaleString('ko-KR') : ''}">
       ${quickAmounts(0, [10000, 50000, 100000, 500000])}
     </div>
     <div class="field"><label>이 달의 목표 (비워두면 기본 ${won(state.settings.monthlyTarget)})</label>
@@ -1514,7 +1532,7 @@ function openAccountSheet(existing) {
     <div class="field"><label>계좌 이름</label><input class="input" id="a-name" value="${esc(a.name || '')}" placeholder="예: 토스 파킹통장, 여행 적금"></div>
     <div class="field"><label>종류</label><div class="pills" id="a-kind">${ACCT_KINDS.map(k => `<button type="button" class="${(a.kind || '입출금') === k ? 'on' : ''}">${k}</button>`).join('')}</div></div>
     <div class="field"><label>색상</label><div class="swatches" id="a-color">${[1, 2, 3, 4, 5, 6, 7, 8].map(c => `<button type="button" data-c="${c}" class="${nextColor === c ? 'on' : ''}" style="background:var(--c${c})" aria-label="색상 ${c}"></button>`).join('')}</div></div>
-    ${a.id ? '' : `<div class="field"><label>현재 잔액</label><input class="input" id="a-bal" inputmode="numeric" placeholder="0"><div class="hint">지금 계좌에 들어있는 금액이에요. 시작 잔액은 월 저금액에 포함되지 않아요.</div></div>`}
+    ${a.id ? '' : `<div class="field"><label>현재 잔액</label><input class="input" id="a-bal" inputmode="numeric" placeholder="0"><div class="hint">지금 계좌에 들어있는 금액이에요. 원래 있던 돈이라 월 저금액에는 포함되지 않아요.</div></div>`}
     <div class="input-row">
       <div class="field"><label>금리 (선택, 연 %)</label><input class="input" id="a-rate" inputmode="decimal" value="${a.rate || ''}" placeholder="예: 3.5"></div>
       <div class="field"><label>만기 (선택)</label><input class="input" type="month" id="a-mat" value="${a.maturity || ''}"></div>
@@ -1601,7 +1619,7 @@ function openAccountDetail(id, txType = 'in') {
     const amt = root.querySelector('#t-amt'), hint = root.querySelector('#t-hint');
     moneyInput(amt); bindQuick(root, amt);
     const setHint = () => {
-      hint.textContent = { in: '외부에서 들어온 돈은 월 저금액에 포함돼요.', out: '빠져나간 돈은 월 저금액에서 빠져요.', move: '내 계좌끼리 옮긴 돈은 월 저금액에 영향이 없어요.', set: '이자·평가금액 등으로 달라진 잔액을 맞춰요. 월 저금액에는 포함되지 않아요.' }[type];
+      hint.textContent = { in: '들어온 돈은 이번 달 저금액에 더해져요.', out: '꺼낸 돈은 이번 달 저금액에서 빠져요.', move: '내 계좌끼리 옮긴 돈은 저금액에 영향이 없어요.', set: '지금 잔액을 입력하면, 달라진 만큼 이번 달 저금액에 반영돼요.' }[type];
       amt.placeholder = type === 'set' ? '현재 잔액' : '금액';
       root.querySelector('#t-move-row').style.display = type === 'move' ? '' : 'none';
     };
@@ -1624,7 +1642,8 @@ function openAccountDetail(id, txType = 'in') {
       const goalsBefore = state.goals.filter(g => goalAccounts(g).length && goalSaved(g) < g.target).map(g => g.id);
       save(); render(); openAccountDetail(id, type);
       const reached = state.goals.find(g => goalsBefore.includes(g.id) && goalSaved(g) >= g.target);
-      toast(reached ? `🎉 '${reached.name}' 목표 달성!` : '기록했어요');
+      const ms = monthSaved(date.slice(0, 7));
+      toast(reached ? `🎉 '${reached.name}' 목표 달성!` : type !== 'move' && ms.source === 'acct' ? `${mLabel(date.slice(0, 7))} 저금 ${ms.value < 0 ? '−' : ''}${won(Math.abs(ms.value))}으로 반영됐어요` : '기록했어요');
     };
     root.querySelectorAll('[data-del-tx]').forEach(b => b.onclick = () => {
       const t = a.txs.find(x => x.id === b.dataset.delTx); if (!t) return;
