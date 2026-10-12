@@ -1,4 +1,4 @@
-var CACHE_NAME = 'moa-cache-v1.3.1';
+var CACHE_NAME = 'moa-cache-v1.3.2';
 var APP_SHELL = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', function (event) {

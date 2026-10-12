@@ -403,10 +403,10 @@ details.table-view td:first-child, details.table-view th:first-child { text-alig
         <h1 class="page-title">리포트</h1>
       </div>
     </header>
-    <div class="seg" id="range-seg">
-      <button data-range="6">6개월</button>
-      <button data-range="12" class="on">12개월</button>
-      <button data-range="24">24개월</button>
+    <div class="card" style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px">
+      <button class="year-nav" id="r-year-prev" aria-label="이전 연도" style="width:36px;height:36px"></button>
+      <div style="text-align:center"><div class="card-title" id="r-year-title" style="font-size:17px"></div><div class="card-sub" id="r-year-sub"></div></div>
+      <button class="year-nav" id="r-year-next" aria-label="다음 연도" style="width:36px;height:36px"></button>
     </div>
     <div class="tiles" id="report-tiles"></div>
 
@@ -604,7 +604,7 @@ function icon(name, extra = '') {
    가계부 연동 데이터는 월별 합계만 캐시(원본 거래내역은 저장하지 않음).
    ===================================================================== */
 // 배포할 때마다 올리고, service-worker.js의 CACHE_NAME도 같은 버전으로 맞춘다
-const APP_VERSION = '1.3.1';
+const APP_VERSION = '1.3.2';
 const KEY = 'moa_data_v1';
 const LINK_KEY = 'moa_gagyebu_cache_v1';
 const THEME_KEY = 'moa_theme';
@@ -851,7 +851,7 @@ function niceMax(v) {
 function chartWidth(el) { return Math.max(260, Math.round(el.clientWidth || el.parentElement?.clientWidth || 320)); }
 
 /* ---------- 막대: 월별 저금액 vs 목표 ---------- */
-function renderSavedBars(el, months) {
+function renderSavedBars(el, months, plainMonths = false) {
   const data = months.map(monthInfo);
   const W = chartWidth(el), H = 200, padL = 36, padR = 4, padT = 10, padB = 24;
   const vals = data.flatMap(d => [d.saved ?? 0, d.target ?? 0]);
@@ -885,7 +885,7 @@ function renderSavedBars(el, months) {
       s += `<line x1="${cx - bw / 2 - 4}" x2="${cx + bw / 2 + 4}" y1="${ty}" y2="${ty}" stroke="var(--target)" stroke-width="2" stroke-linecap="round" stroke-dasharray="3 3"/>`;
     }
     const step = n > 12 ? Math.ceil(n / 8) : 1;
-    if (i % step === 0 || i === n - 1) s += `<text x="${cx}" y="${H - 6}" text-anchor="middle">${axisMonth(d.ym, n)}</text>`;
+    if (i % step === 0 || i === n - 1) s += `<text x="${cx}" y="${H - 6}" text-anchor="middle">${plainMonths ? Number(d.ym.slice(5)) : axisMonth(d.ym, n)}</text>`;
     const st = { hit: '✓ 달성', miss: '✕ 미달성', pending: '◷ 진행 중', empty: '기록 없음' }[d.status];
     const tip = tipRows(ymLabel(d.ym), [['저금', won(d.saved)], ['목표', won(d.target)], ['달성률', d.rate != null ? Math.round(d.rate * 100) + '%' : '-'], ['상태', st]]);
     s += `<rect x="${cx - slot / 2}" y="${padT}" width="${slot}" height="${H - padT - padB}" fill="transparent" data-tip="${esc(tip)}"/>`;
@@ -1095,9 +1095,18 @@ function renderHome() {
 /* =====================================================================
    렌더 — 리포트
    ===================================================================== */
-let reportRange = 12;
+let reportYear = new Date().getFullYear();
 function renderReport() {
-  const months = lastMonths(reportRange);
+  // 선택한 연도의 1~12월. 아직 오지 않은 달은 값 없이 자리만 둔다
+  const nowY = new Date().getFullYear();
+  if (reportYear > nowY) reportYear = nowY;
+  const months = Array.from({ length: 12 }, (_, k) => `${reportYear}-${pad(k + 1)}`);
+  document.getElementById('r-year-title').textContent = `${reportYear}년`;
+  document.getElementById('r-year-sub').textContent = reportYear === nowY ? `1월 ~ ${Number(NOW_YM().slice(5))}월` : '1월 ~ 12월';
+  document.getElementById('r-year-prev').innerHTML = icon('left');
+  document.getElementById('r-year-next').innerHTML = icon('right');
+  document.getElementById('r-year-prev').disabled = reportYear <= firstDataYear();
+  document.getElementById('r-year-next').disabled = reportYear >= nowY;
   const infos = months.map(monthInfo);
   const recorded = infos.filter(i => i.saved != null);
   const judged = infos.filter(i => i.status === 'hit' || i.status === 'miss');
@@ -1110,15 +1119,20 @@ function renderReport() {
     <div class="tile"><div class="k">월 평균</div><div class="v">${man(avg)}<small>원</small></div><div class="k" style="margin-top:2px">연속 ${streak()}개월</div></div>`;
 
   document.getElementById('r-bars-legend').innerHTML = savedBarsLegend();
-  renderSavedBars(document.getElementById('r-bars'), months);
-  document.getElementById('r-bars-table').innerHTML = `<details class="table-view"><summary>표로 보기</summary><table><tr><th>월</th><th>저금</th><th>목표</th><th>달성률</th></tr>${infos.map(i => `<tr><td>${ymLabel(i.ym)}</td><td>${won(i.saved)}</td><td>${won(i.target)}</td><td>${i.rate != null ? Math.round(i.rate * 100) + '%' : '-'}</td></tr>`).join('')}</table></details>`;
+  renderSavedBars(document.getElementById('r-bars'), months, true);
+  document.getElementById('r-bars-table').innerHTML = `<details class="table-view"><summary>표로 보기</summary><table><tr><th>월</th><th>저금</th><th>목표</th><th>달성률</th></tr>${infos.filter(i => i.ym <= NOW_YM()).map(i => `<tr><td>${ymLabel(i.ym)}</td><td>${won(i.saved)}</td><td>${won(i.target)}</td><td>${i.rate != null ? Math.round(i.rate * 100) + '%' : '-'}</td></tr>`).join('')}</table></details>`;
 
   // 누적
+  // 기록이 시작된 달부터 누적 (그 전 달의 목표까지 더하면 '목표 대비'가 왜곡됨), 미래 달은 비움
+  const startIdx = infos.findIndex(i => i.saved != null);
   let cs = 0, ct = 0;
   const cumS = [], cumT = [];
-  infos.forEach(i => { cs += i.saved || 0; ct += i.target || 0; cumS.push(cs); cumT.push(ct); });
-  const labels = months.map(m => axisMonth(m, months.length)); labels.full = months.map(ymLabel);
-  document.getElementById('cum-sub').textContent = ct ? `목표 대비 ${Math.round(cs / ct * 100)}%` : '';
+  infos.forEach((i, k) => {
+    if (startIdx < 0 || k < startIdx || i.ym > NOW_YM()) { cumS.push(null); cumT.push(null); return; }
+    cs += i.saved || 0; ct += i.target || 0; cumS.push(cs); cumT.push(ct);
+  });
+  const labels = months.map(m => String(Number(m.slice(5)))); labels.full = months.map(ymLabel);
+  document.getElementById('cum-sub').textContent = ct ? `${mLabel(months[startIdx])}부터 · 목표 대비 ${Math.round(cs / ct * 100)}%` : '기록이 없어요';
   renderLine(document.getElementById('r-cum'), {
     labels, title: '누적 저금액',
     series: [{ name: '실제 누적', values: cumS, color: 'var(--accent)', area: true }, { name: '목표 누적', values: cumT, color: 'var(--target)', dash: true }],
@@ -2081,12 +2095,8 @@ document.addEventListener('click', e => {
   const gt = t.closest('[data-goto]'); if (gt) go(gt.dataset.goto);
 });
 
-document.getElementById('range-seg').addEventListener('click', e => {
-  const b = e.target.closest('button'); if (!b) return;
-  reportRange = +b.dataset.range;
-  document.querySelectorAll('#range-seg button').forEach(x => x.classList.toggle('on', x === b));
-  renderReport();
-});
+document.getElementById('r-year-prev').addEventListener('click', () => { reportYear--; renderReport(); });
+document.getElementById('r-year-next').addEventListener('click', () => { reportYear++; renderReport(); });
 document.getElementById('journal-seg').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
   journalKind = b.dataset.kind;
