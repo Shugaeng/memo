@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>모아 · 저금 기록</title>
 <meta name="theme-color" content="#0f1412">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -86,7 +86,7 @@
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html, body { margin: 0; padding: 0; }
+html, body { margin: 0; padding: 0; touch-action: manipulation; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 body {
   background: var(--bg);
   color: var(--text);
@@ -230,7 +230,7 @@ button { cursor: pointer; }
 /* ---------- forms / sheet ---------- */
 .field { margin-bottom: 14px; }
 .field label { display: block; font-size: 12px; font-weight: 600; color: var(--text-2); margin-bottom: 6px; }
-.input, .textarea, select.input { width: 100%; background: var(--surface-2); border: 1px solid var(--line); border-radius: 14px; padding: 13px 14px; font-size: 15px; outline: none; transition: border-color .15s; }
+.input, .textarea, select.input { width: 100%; background: var(--surface-2); border: 1px solid var(--line); border-radius: 14px; padding: 13px 14px; font-size: 16px; outline: none; transition: border-color .15s; }
 .input:focus, .textarea:focus { border-color: var(--accent); }
 .textarea { min-height: 120px; resize: vertical; line-height: 1.6; }
 .input-row { display: flex; gap: 8px; }
@@ -1717,6 +1717,14 @@ document.getElementById('reset-btn').addEventListener('click', () => {
 let resizeT;
 window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(render, 150); });
 matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', renderTheme);
+
+// 확대/축소 막기 — iOS Safari는 viewport의 user-scalable=no를 무시하므로 제스처 이벤트도 막는다
+['gesturestart', 'gesturechange', 'gestureend'].forEach(t => document.addEventListener(t, e => e.preventDefault(), { passive: false }));
+document.addEventListener('touchmove', e => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
+// 더블탭 확대는 CSS touch-action: manipulation 으로 막는다 (touchend를 막으면 연속 탭 클릭이 씹힘)
+// PC: Ctrl/⌘ + 휠, Ctrl/⌘ + '+/-/0' 확대 막기
+document.addEventListener('wheel', e => { if (e.ctrlKey || e.metaKey) e.preventDefault(); }, { passive: false });
+document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && ['+', '=', '-', '_', '0'].includes(e.key)) e.preventDefault(); });
 
 renderTheme();
 go('home');
