@@ -1,0 +1,1541 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>모아 · 저금 기록</title>
+<meta name="theme-color" content="#0f1412">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="모아">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #0f1412;
+  --surface: #161d1a;
+  --surface-2: #1d2622;
+  --surface-3: #25302b;
+  --line: #2a3530;
+  --text: #eef1ec;
+  --text-2: #a9b3ad;
+  --muted: #6f7a74;
+  --accent: #8fd4ae;
+  --accent-ink: #0f1412;
+  --accent-soft: rgba(143, 212, 174, .14);
+  --hit: #8fd4ae;
+  --miss: #f0906f;
+  --miss-soft: rgba(240, 144, 111, .14);
+  --pending: #e5c07b;
+  --target: #e9dcc0;
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --grid: rgba(238, 241, 236, .07);
+  --shadow: 0 1px 0 rgba(255,255,255,.03) inset, 0 12px 32px rgba(0,0,0,.35);
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    color-scheme: light;
+    --bg: #f4f2ec;
+    --surface: #fffdf8;
+    --surface-2: #f3f0e8;
+    --surface-3: #e9e5da;
+    --line: #e2ddd0;
+    --text: #1b2420;
+    --text-2: #4f5a54;
+    --muted: #8b938e;
+    --accent: #2f8a5f;
+    --accent-ink: #ffffff;
+    --accent-soft: rgba(47, 138, 95, .1);
+    --hit: #2f8a5f;
+    --miss: #d4623f;
+    --miss-soft: rgba(212, 98, 63, .1);
+    --pending: #b7862a;
+    --target: #6b5a35;
+    --series-1: #2a78d6;
+    --series-2: #eb6834;
+    --grid: rgba(27, 36, 32, .07);
+    --shadow: 0 1px 2px rgba(27,36,32,.04), 0 8px 24px rgba(27,36,32,.06);
+  }
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f4f2ec;
+  --surface: #fffdf8;
+  --surface-2: #f3f0e8;
+  --surface-3: #e9e5da;
+  --line: #e2ddd0;
+  --text: #1b2420;
+  --text-2: #4f5a54;
+  --muted: #8b938e;
+  --accent: #2f8a5f;
+  --accent-ink: #ffffff;
+  --accent-soft: rgba(47, 138, 95, .1);
+  --hit: #2f8a5f;
+  --miss: #d4623f;
+  --miss-soft: rgba(212, 98, 63, .1);
+  --pending: #b7862a;
+  --target: #6b5a35;
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --grid: rgba(27, 36, 32, .07);
+  --shadow: 0 1px 2px rgba(27,36,32,.04), 0 8px 24px rgba(27,36,32,.06);
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  letter-spacing: -0.01em;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "tnum";
+  min-height: 100vh;
+}
+button, input, textarea, select { font: inherit; color: inherit; letter-spacing: inherit; }
+button { cursor: pointer; }
+
+.app { max-width: 560px; margin: 0 auto; padding: calc(env(safe-area-inset-top) + 20px) 16px calc(env(safe-area-inset-bottom) + 96px); }
+
+/* ---------- header ---------- */
+.top { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 20px; }
+.eyebrow { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.page-title { font-size: 26px; font-weight: 700; letter-spacing: -0.03em; margin: 2px 0 0; }
+.icon-btn { width: 40px; height: 40px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); display: grid; place-items: center; color: var(--text-2); }
+.icon-btn svg { width: 18px; height: 18px; }
+
+/* ---------- cards ---------- */
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 22px; padding: 20px; margin-bottom: 14px; box-shadow: var(--shadow); }
+.card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.card-title { font-size: 15px; font-weight: 700; margin: 0; }
+.card-sub { font-size: 12px; color: var(--muted); }
+.section-label { font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: .06em; margin: 26px 4px 10px; }
+
+/* ---------- hero ---------- */
+.hero { display: grid; grid-template-columns: 132px 1fr; gap: 20px; align-items: center; }
+.ring-wrap { position: relative; width: 132px; height: 132px; }
+.ring-wrap svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.ring-center { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; }
+.ring-pct { font-size: 28px; font-weight: 700; letter-spacing: -0.04em; line-height: 1; }
+.ring-pct small { font-size: 14px; font-weight: 600; color: var(--text-2); }
+.ring-label { font-size: 11px; color: var(--muted); margin-top: 4px; }
+.hero-amount { font-size: 28px; font-weight: 700; letter-spacing: -0.04em; line-height: 1.15; }
+.hero-amount .unit { font-size: 16px; font-weight: 600; color: var(--text-2); margin-left: 2px; }
+.hero-target { font-size: 13px; color: var(--text-2); margin-top: 4px; }
+.chip { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: var(--surface-2); color: var(--text-2); }
+.chip svg { width: 12px; height: 12px; }
+.chip.hit { background: var(--accent-soft); color: var(--hit); }
+.chip.miss { background: var(--miss-soft); color: var(--miss); }
+.chip.pending { background: color-mix(in srgb, var(--pending) 14%, transparent); color: var(--pending); }
+.hero-meta { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
+.meta-k { font-size: 11px; color: var(--muted); }
+.meta-v { font-size: 15px; font-weight: 700; margin-top: 2px; }
+.hero-actions { display: flex; gap: 8px; margin-top: 16px; }
+
+/* ---------- buttons ---------- */
+.btn { border: 0; border-radius: 14px; padding: 12px 16px; font-size: 14px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 6px; background: var(--surface-2); color: var(--text); border: 1px solid var(--line); }
+.btn svg { width: 16px; height: 16px; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+.btn.danger { color: var(--miss); }
+.btn.ghost { background: transparent; }
+.btn.block { width: 100%; }
+.btn.sm { padding: 8px 12px; font-size: 13px; border-radius: 11px; }
+.btn:disabled { opacity: .5; }
+
+/* ---------- banner ---------- */
+.banner { display: flex; gap: 14px; align-items: center; padding: 16px 18px; border-radius: 20px; background: var(--miss-soft); border: 1px solid color-mix(in srgb, var(--miss) 30%, transparent); margin-bottom: 14px; }
+.banner-icon { width: 38px; height: 38px; flex: none; border-radius: 12px; background: var(--miss); color: var(--bg); display: grid; place-items: center; }
+.banner-icon svg { width: 18px; height: 18px; }
+.banner b { display: block; font-size: 14px; }
+.banner span { font-size: 12px; color: var(--text-2); }
+.banner .btn { margin-left: auto; flex: none; }
+
+/* ---------- year grid ---------- */
+.year-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.ym-cell { aspect-ratio: 1.35 / 1; border-radius: 14px; background: var(--surface-2); border: 1px solid var(--line); display: flex; flex-direction: column; justify-content: space-between; padding: 8px; position: relative; overflow: hidden; }
+.ym-cell .m { font-size: 12px; font-weight: 600; color: var(--muted); position: relative; }
+.ym-cell .s { font-size: 15px; font-weight: 700; position: relative; display: flex; align-items: center; gap: 2px; }
+.ym-cell .s svg { width: 13px; height: 13px; }
+.ym-cell .fill { position: absolute; left: 0; right: 0; bottom: 0; background: var(--accent-soft); }
+.ym-cell.hit { border-color: color-mix(in srgb, var(--hit) 45%, transparent); }
+.ym-cell.hit .s { color: var(--hit); }
+.ym-cell.miss { border-color: color-mix(in srgb, var(--miss) 40%, transparent); }
+.ym-cell.miss .fill { background: var(--miss-soft); }
+.ym-cell.miss .s { color: var(--miss); }
+.ym-cell.now { outline: 2px solid var(--text); outline-offset: 1px; }
+.ym-cell.empty .s { color: var(--muted); }
+
+/* ---------- stats tiles ---------- */
+.tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
+.tile { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 14px; box-shadow: var(--shadow); }
+.tile .k { font-size: 11px; color: var(--muted); }
+.tile .v { font-size: 20px; font-weight: 700; letter-spacing: -0.03em; margin-top: 4px; }
+.tile .v small { font-size: 12px; color: var(--text-2); font-weight: 600; }
+
+/* ---------- charts ---------- */
+.chart { position: relative; width: 100%; }
+.chart svg { display: block; width: 100%; overflow: visible; }
+.chart text { fill: var(--muted); font-size: 11px; font-family: inherit; }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: var(--text-2); margin-bottom: 10px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+.legend i.line { height: 2px; border-radius: 1px; vertical-align: 3px; width: 14px; }
+.legend i.dash { height: 0; border-top: 2px dashed var(--target); border-radius: 0; vertical-align: 3px; width: 14px; background: none !important; }
+.tip { position: fixed; z-index: 60; pointer-events: none; background: var(--text); color: var(--bg); border-radius: 12px; padding: 9px 12px; font-size: 12px; line-height: 1.5; box-shadow: 0 10px 30px rgba(0,0,0,.3); opacity: 0; transform: translateY(4px); transition: opacity .12s, transform .12s; max-width: 220px; }
+.tip.show { opacity: 1; transform: none; }
+.tip b { font-weight: 700; }
+.tip .row { display: flex; justify-content: space-between; gap: 14px; }
+.tip .row span:first-child { opacity: .7; }
+.empty-state { text-align: center; padding: 28px 12px; color: var(--muted); font-size: 13px; }
+.empty-state svg { width: 28px; height: 28px; margin-bottom: 8px; opacity: .6; }
+
+.hbar { display: grid; grid-template-columns: 76px 1fr auto; gap: 10px; align-items: center; margin-bottom: 10px; font-size: 13px; }
+.hbar .name { color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hbar .track { height: 10px; background: var(--surface-2); border-radius: 0 4px 4px 0; overflow: hidden; }
+.hbar .bar { height: 100%; border-radius: 0 4px 4px 0; background: var(--series-2); }
+.hbar .val { font-weight: 600; font-size: 12px; min-width: 56px; text-align: right; }
+
+/* ---------- goals ---------- */
+.goal { padding: 18px 20px; }
+.goal-top { display: flex; align-items: center; gap: 12px; }
+.goal-emoji { width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; font-size: 22px; background: var(--surface-2); flex: none; }
+.goal-name { font-weight: 700; font-size: 15px; }
+.goal-dl { font-size: 12px; color: var(--muted); }
+.goal-pct { margin-left: auto; font-size: 20px; font-weight: 700; letter-spacing: -0.03em; }
+.progress { height: 8px; background: var(--surface-2); border-radius: 999px; margin: 14px 0 10px; overflow: hidden; position: relative; }
+.progress > div { height: 100%; border-radius: 999px; background: var(--accent); transition: width .5s cubic-bezier(.2,.8,.2,1); }
+.goal-foot { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-2); gap: 8px; flex-wrap: wrap; }
+.goal-foot b { color: var(--text); }
+
+/* ---------- journal ---------- */
+.seg { display: flex; background: var(--surface-2); border: 1px solid var(--line); border-radius: 14px; padding: 4px; gap: 4px; margin-bottom: 14px; }
+.seg button { flex: 1; border: 0; background: transparent; padding: 8px 10px; border-radius: 10px; font-size: 13px; font-weight: 600; color: var(--muted); }
+.seg button.on { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+.entry { padding: 18px 20px; cursor: pointer; }
+.entry-top { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.entry-mood { font-size: 20px; }
+.entry-date { font-size: 12px; color: var(--muted); margin-left: auto; }
+.entry-title { font-weight: 700; font-size: 15px; margin: 0 0 4px; }
+.entry-body { font-size: 14px; color: var(--text-2); white-space: pre-wrap; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.entry-action { margin-top: 10px; font-size: 13px; padding: 10px 12px; border-radius: 12px; background: var(--accent-soft); color: var(--text); }
+.entry-action b { color: var(--hit); font-size: 11px; display: block; letter-spacing: .04em; }
+.mood-strip { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+.mood-strip::-webkit-scrollbar { display: none; }
+
+/* ---------- forms / sheet ---------- */
+.field { margin-bottom: 14px; }
+.field label { display: block; font-size: 12px; font-weight: 600; color: var(--text-2); margin-bottom: 6px; }
+.input, .textarea, select.input { width: 100%; background: var(--surface-2); border: 1px solid var(--line); border-radius: 14px; padding: 13px 14px; font-size: 15px; outline: none; transition: border-color .15s; }
+.input:focus, .textarea:focus { border-color: var(--accent); }
+.textarea { min-height: 120px; resize: vertical; line-height: 1.6; }
+.input-row { display: flex; gap: 8px; }
+.input-row > * { flex: 1; }
+.hint { font-size: 12px; color: var(--muted); margin-top: 6px; }
+.quick { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.quick button { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; font-size: 12px; padding: 5px 10px; color: var(--text-2); }
+.moods { display: flex; gap: 6px; }
+.moods button { flex: 1; border: 1px solid var(--line); background: var(--surface-2); border-radius: 14px; font-size: 22px; padding: 8px 0; filter: grayscale(.8); opacity: .6; transition: all .15s; }
+.moods button.on { filter: none; opacity: 1; border-color: var(--accent); background: var(--accent-soft); }
+.emojis { display: flex; flex-wrap: wrap; gap: 6px; }
+.emojis button { width: 42px; height: 42px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface-2); font-size: 20px; }
+.emojis button.on { border-color: var(--accent); background: var(--accent-soft); }
+
+.backdrop { position: fixed; inset: 0; background: rgba(5, 8, 7, .55); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); z-index: 40; opacity: 0; pointer-events: none; transition: opacity .2s; }
+.backdrop.show { opacity: 1; pointer-events: auto; }
+.sheet { position: fixed; left: 50%; bottom: 0; width: 100%; max-width: 560px; max-height: 92vh; overflow-y: auto; background: var(--surface); border-radius: 26px 26px 0 0; border: 1px solid var(--line); border-bottom: 0; z-index: 50; padding: 10px 20px calc(env(safe-area-inset-bottom) + 20px); transform: translate(-50%, 100%); transition: transform .28s cubic-bezier(.2,.8,.2,1); }
+.sheet:not(.show) { visibility: hidden; transition: transform .28s cubic-bezier(.2,.8,.2,1), visibility 0s .28s; }
+.sheet.show { transform: translate(-50%, 0); }
+.sheet-grip { width: 40px; height: 4px; border-radius: 4px; background: var(--surface-3); margin: 0 auto 14px; }
+.sheet h3 { font-size: 19px; margin: 0 0 4px; letter-spacing: -0.02em; }
+.sheet .sheet-desc { font-size: 13px; color: var(--text-2); margin: 0 0 18px; }
+.context-box { background: var(--surface-2); border-radius: 16px; padding: 14px; margin-bottom: 16px; font-size: 13px; }
+.context-box .row { display: flex; justify-content: space-between; padding: 3px 0; color: var(--text-2); }
+.context-box .row b { color: var(--text); }
+.sheet-actions { display: flex; gap: 8px; margin-top: 18px; }
+.sheet-actions .btn { flex: 1; }
+
+/* ---------- list rows ---------- */
+.list-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.list-row:last-child { border-bottom: 0; }
+.list-row .grow { flex: 1; min-width: 0; }
+.list-row .sub { font-size: 12px; color: var(--muted); }
+.list-row .amt { font-weight: 700; }
+.src-tag { font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 6px; background: var(--surface-2); color: var(--muted); letter-spacing: .02em; }
+.src-tag.link { color: var(--series-1); background: color-mix(in srgb, var(--series-1) 14%, transparent); }
+
+/* ---------- nav ---------- */
+.nav { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom) + 12px); width: calc(100% - 32px); max-width: 528px; display: flex; background: color-mix(in srgb, var(--surface) 86%, transparent); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid var(--line); border-radius: 22px; padding: 6px; z-index: 30; box-shadow: 0 10px 40px rgba(0,0,0,.25); }
+.nav button { flex: 1; border: 0; background: transparent; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 0 6px; border-radius: 16px; color: var(--muted); font-size: 11px; font-weight: 600; transition: color .15s, background .15s; }
+.nav button svg { width: 20px; height: 20px; }
+.nav button.on { color: var(--text); background: var(--surface-2); }
+.fab { position: fixed; right: max(16px, calc(50% - 264px)); bottom: calc(env(safe-area-inset-bottom) + 92px); width: 56px; height: 56px; border-radius: 18px; border: 0; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; box-shadow: 0 10px 30px rgba(0,0,0,.3); z-index: 25; }
+.fab svg { width: 24px; height: 24px; }
+
+.view { display: none; animation: fade .25s ease; }
+.view.on { display: block; }
+@keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+.toast { position: fixed; left: 50%; top: calc(env(safe-area-inset-top) + 16px); transform: translate(-50%, -20px); background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 14px; font-size: 13px; font-weight: 600; z-index: 70; opacity: 0; transition: all .22s; pointer-events: none; white-space: nowrap; }
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+.link-status { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-2); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.dot.on { background: var(--hit); box-shadow: 0 0 0 4px var(--accent-soft); }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+details.table-view summary { font-size: 12px; color: var(--muted); cursor: pointer; margin-top: 10px; }
+details.table-view table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }
+details.table-view td, details.table-view th { padding: 6px 4px; border-bottom: 1px solid var(--line); text-align: right; }
+details.table-view th { color: var(--muted); font-weight: 600; }
+details.table-view td:first-child, details.table-view th:first-child { text-align: left; }
+
+@media (max-width: 380px) {
+  .hero { grid-template-columns: 112px 1fr; gap: 14px; }
+  .ring-wrap { width: 112px; height: 112px; }
+  .hero-amount { font-size: 24px; }
+  .tile .v { font-size: 17px; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ================= HOME ================= -->
+  <section class="view on" id="view-home">
+    <header class="top">
+      <div>
+        <div class="eyebrow" id="home-eyebrow"></div>
+        <h1 class="page-title">이번 달의 저금</h1>
+      </div>
+      <button class="icon-btn" id="theme-btn" aria-label="테마 전환"></button>
+    </header>
+
+    <div id="reflect-banner"></div>
+
+    <div class="card">
+      <div class="hero">
+        <div class="ring-wrap" id="hero-ring"></div>
+        <div>
+          <div id="hero-chip"></div>
+          <div class="hero-amount" id="hero-amount" style="margin-top:8px"></div>
+          <div class="hero-target" id="hero-target"></div>
+        </div>
+      </div>
+      <div class="hero-meta" id="hero-meta"></div>
+      <div class="hero-actions">
+        <button class="btn primary" style="flex:1" id="hero-record-btn"></button>
+        <button class="btn" id="hero-target-btn"></button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <h2 class="card-title">최근 12개월 달성 기록</h2>
+        <span class="card-sub" id="year-summary"></span>
+      </div>
+      <div class="year-grid" id="year-grid"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <h2 class="card-title">월별 저금액과 목표</h2>
+        <span class="card-sub">최근 6개월</span>
+      </div>
+      <div class="legend" id="home-bars-legend"></div>
+      <div class="chart" id="home-bars"></div>
+    </div>
+
+    <div class="section-label">진행 중인 목표</div>
+    <div id="home-goals"></div>
+
+    <div class="section-label">최근 기록</div>
+    <div id="home-journal"></div>
+  </section>
+
+  <!-- ================= REPORT ================= -->
+  <section class="view" id="view-report">
+    <header class="top">
+      <div>
+        <div class="eyebrow">Report</div>
+        <h1 class="page-title">리포트</h1>
+      </div>
+    </header>
+    <div class="seg" id="range-seg">
+      <button data-range="6">6개월</button>
+      <button data-range="12" class="on">12개월</button>
+      <button data-range="24">24개월</button>
+    </div>
+    <div class="tiles" id="report-tiles"></div>
+
+    <div class="card">
+      <div class="card-head">
+        <h2 class="card-title">월별 저금액 vs 목표</h2>
+      </div>
+      <div class="legend" id="r-bars-legend"></div>
+      <div class="chart" id="r-bars"></div>
+      <div id="r-bars-table"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <h2 class="card-title">누적 저금액</h2>
+        <span class="card-sub" id="cum-sub"></span>
+      </div>
+      <div class="legend">
+        <span><i class="line" style="background:var(--accent)"></i>실제 누적</span>
+        <span><i class="dash"></i>목표 누적</span>
+      </div>
+      <div class="chart" id="r-cum"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <h2 class="card-title">달성률 추이</h2>
+        <span class="card-sub">목표 대비 %</span>
+      </div>
+      <div class="chart" id="r-rate"></div>
+    </div>
+
+    <div id="linked-report"></div>
+  </section>
+
+  <!-- ================= GOALS ================= -->
+  <section class="view" id="view-goals">
+    <header class="top">
+      <div>
+        <div class="eyebrow">Goals</div>
+        <h1 class="page-title">모으는 중</h1>
+      </div>
+      <button class="icon-btn" id="add-goal-btn" aria-label="목표 추가"></button>
+    </header>
+    <div class="card" id="goals-overview"></div>
+    <div id="goals-list"></div>
+  </section>
+
+  <!-- ================= JOURNAL ================= -->
+  <section class="view" id="view-journal">
+    <header class="top">
+      <div>
+        <div class="eyebrow">Journal</div>
+        <h1 class="page-title">돌아보기</h1>
+      </div>
+    </header>
+    <div class="seg" id="journal-seg">
+      <button data-kind="all" class="on">전체</button>
+      <button data-kind="reflection">반성 일기</button>
+      <button data-kind="memo">메모</button>
+    </div>
+    <div class="card" id="mood-card"></div>
+    <div id="journal-list"></div>
+  </section>
+
+  <!-- ================= SETTINGS ================= -->
+  <section class="view" id="view-settings">
+    <header class="top">
+      <div>
+        <div class="eyebrow">Settings</div>
+        <h1 class="page-title">설정</h1>
+      </div>
+    </header>
+
+    <div class="card">
+      <div class="card-head"><h2 class="card-title">기본 월 저금 목표</h2></div>
+      <div class="input-row">
+        <input class="input" id="set-target" inputmode="numeric" placeholder="예: 1,000,000">
+        <button class="btn primary" style="flex:none" id="set-target-save">저장</button>
+      </div>
+      <div class="hint">월별로 따로 정하지 않은 달에는 이 금액이 목표가 돼요.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <h2 class="card-title">가계부 연동</h2>
+        <div class="link-status"><span class="dot" id="link-dot"></span><span id="link-text"></span></div>
+      </div>
+      <p class="hint" style="margin:-6px 0 14px">가계부의 6자리 동기화 코드로 월별 수입·지출을 <b>읽기만</b> 해요. 가계부 데이터는 절대 수정하지 않아요.</p>
+      <div class="input-row">
+        <input class="input" id="link-code" inputmode="numeric" maxlength="6" placeholder="동기화 코드 6자리">
+        <button class="btn primary" style="flex:none" id="link-btn">연동</button>
+      </div>
+      <div class="field" style="margin:14px 0 0">
+        <label for="link-mode">저금액 계산 방식</label>
+        <select class="input" id="link-mode">
+          <option value="net">수입 − 지출 (남은 돈 = 저금)</option>
+          <option value="off">연동 데이터로 저금액 자동 계산 안 함</option>
+        </select>
+        <div class="hint">직접 입력한 달은 항상 직접 입력값이 우선이에요.</div>
+      </div>
+      <div style="display:flex; gap:8px; margin-top:14px; flex-wrap:wrap">
+        <button class="btn sm" id="link-refresh">지금 새로고침</button>
+        <label class="btn sm" for="gagyebu-file" style="cursor:pointer">가계부 백업 파일로 불러오기</label>
+        <input type="file" id="gagyebu-file" accept="application/json,.json" hidden>
+        <button class="btn sm danger" id="link-off">연동 해제</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2 class="card-title">월별 기록 관리</h2><span class="card-sub">탭해서 수정</span></div>
+      <div id="month-records"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2 class="card-title">데이터</h2></div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap">
+        <button class="btn sm" id="export-btn">백업 내보내기</button>
+        <label class="btn sm" for="import-file" style="cursor:pointer">백업 불러오기</label>
+        <input type="file" id="import-file" accept="application/json,.json" hidden>
+        <button class="btn sm danger" id="reset-btn">전체 초기화</button>
+      </div>
+      <div class="hint">모든 기록은 이 기기에만 저장돼요. 기기를 바꾸기 전에 꼭 백업해 주세요.</div>
+    </div>
+  </section>
+</div>
+
+<button class="fab" id="fab" aria-label="새 기록"></button>
+
+<nav class="nav" id="nav">
+  <button data-view="home" class="on"><span data-ic="home"></span>홈</button>
+  <button data-view="report"><span data-ic="chart"></span>리포트</button>
+  <button data-view="goals"><span data-ic="target"></span>목표</button>
+  <button data-view="journal"><span data-ic="book"></span>일기</button>
+  <button data-view="settings"><span data-ic="gear"></span>설정</button>
+</nav>
+
+<div class="backdrop" id="backdrop"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true"><div class="sheet-grip"></div><div id="sheet-body"></div></div>
+<div class="tip" id="tip"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+
+/* =====================================================================
+   아이콘 (인라인 SVG — 외부 아이콘 CDN 없이 항상 표시)
+   ===================================================================== */
+const IC = {
+  home: '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
+  chart: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+  target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',
+  book: '<path d="M4 19.5V5a2 2 0 0 1 2-2h14v16H6.5A2.5 2.5 0 0 0 4 21.5 2.5 2.5 0 0 0 6.5 24"/><path d="M8 7h8M8 11h6"/>',
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68 1.65 1.65 0 0 0 10 3.17V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  x: '<path d="M18 6 6 18M6 6l12 12"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  pen: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
+  moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  auto: '<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/>',
+  feather: '<path d="M20.2 12.2a6 6 0 0 0-8.5-8.5L5 10.5V19h8.5z"/><path d="M16 8 2 22M17.5 15H9"/>',
+  coin: '<circle cx="12" cy="12" r="9"/><path d="M14.5 9.5c-.5-1-1.5-1.5-2.5-1.5-1.4 0-2.5.8-2.5 2s1.1 1.6 2.5 2 2.5.8 2.5 2-1.1 2-2.5 2c-1 0-2-.5-2.5-1.5M12 6.5v11"/>',
+};
+function icon(name, extra = '') {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" ${extra}>${IC[name]}</svg>`;
+}
+
+/* =====================================================================
+   저장소 — 이 앱의 데이터는 이 기기의 localStorage에만 저장.
+   가계부 연동 데이터는 월별 합계만 캐시(원본 거래내역은 저장하지 않음).
+   ===================================================================== */
+const KEY = 'moa_data_v1';
+const LINK_KEY = 'moa_gagyebu_cache_v1';
+const THEME_KEY = 'moa_theme';
+
+const DEFAULT_STATE = {
+  settings: { monthlyTarget: 1000000, linkCode: '', linkMode: 'net' },
+  months: {},   // 'YYYY-MM': { target?: number, saved?: number }
+  goals: [],    // { id, name, emoji, target, deadline, deposits: [{id, date, amount, memo}] }
+  journal: [],  // { id, kind: 'reflection'|'memo', date, ym?, mood, title, body, action }
+};
+
+let state = load();
+let linkCache = loadLink();
+
+function load() {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (!raw) return structuredClone(DEFAULT_STATE);
+    const d = JSON.parse(raw);
+    return {
+      settings: Object.assign({}, DEFAULT_STATE.settings, d.settings),
+      months: d.months || {},
+      goals: Array.isArray(d.goals) ? d.goals : [],
+      journal: Array.isArray(d.journal) ? d.journal : [],
+    };
+  } catch (e) { return structuredClone(DEFAULT_STATE); }
+}
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { toast('저장에 실패했어요'); }
+}
+function loadLink() {
+  try { return JSON.parse(localStorage.getItem(LINK_KEY)) || null; } catch (e) { return null; }
+}
+function saveLink() {
+  try { linkCache ? localStorage.setItem(LINK_KEY, JSON.stringify(linkCache)) : localStorage.removeItem(LINK_KEY); } catch (e) {}
+}
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+
+/* =====================================================================
+   날짜 / 포맷 유틸
+   ===================================================================== */
+const pad = n => String(n).padStart(2, '0');
+const ymOf = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
+const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
+const NOW_YM = () => ymOf(new Date());
+function addMonths(ym, n) { const [y, m] = ym.split('-').map(Number); return ymOf(new Date(y, m - 1 + n, 1)); }
+function lastMonths(n, end = NOW_YM()) { const out = []; for (let i = n - 1; i >= 0; i--) out.push(addMonths(end, -i)); return out; }
+const mLabel = ym => `${Number(ym.slice(5))}월`;
+// 차트 x축용: 칸이 좁으면 '월'을 빼고, 1월에는 연도를 붙여 해가 바뀌는 지점을 표시
+const axisMonth = (ym, n) => n > 6 ? (ym.slice(5) === '01' ? `'${ym.slice(2, 4)}.1` : String(Number(ym.slice(5)))) : mLabel(ym);
+const ymLabel = ym => `${ym.slice(0, 4)}년 ${Number(ym.slice(5))}월`;
+function daysInMonth(ym) { const [y, m] = ym.split('-').map(Number); return new Date(y, m, 0).getDate(); }
+
+const won = n => (n == null || isNaN(n)) ? '-' : `${Math.round(n).toLocaleString('ko-KR')}원`;
+function man(n, digits = 0) {
+  // 만원 단위 축약: 1,234,000 → 123만
+  if (n == null || isNaN(n)) return '-';
+  const sign = n < 0 ? '−' : '';
+  const a = Math.abs(n);
+  if (a >= 100000000) return `${sign}${(a / 100000000).toFixed(a >= 1e9 ? 0 : 1).replace(/\.0$/, '')}억`;
+  if (a >= 10000) return `${sign}${(a / 10000).toFixed(digits).replace(/\.0$/, '')}만`;
+  return `${sign}${Math.round(a).toLocaleString('ko-KR')}`;
+}
+const parseNum = s => { const n = Number(String(s).replace(/[^\d.-]/g, '')); return isNaN(n) ? null : n; };
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+/* =====================================================================
+   도메인 로직 — 월별 저금액 / 목표 / 달성 상태
+   ===================================================================== */
+function linkedMonth(ym) { return linkCache?.monthly?.[ym] || null; }
+
+function monthTarget(ym) {
+  const t = state.months[ym]?.target;
+  return t != null ? t : state.settings.monthlyTarget;
+}
+function monthSaved(ym) {
+  // 반환: { value, source: 'manual' | 'link' | null }
+  const rec = state.months[ym];
+  if (rec && rec.saved != null) return { value: rec.saved, source: 'manual' };
+  const l = linkedMonth(ym);
+  if (l && state.settings.linkMode === 'net') return { value: l.income - l.expense, source: 'link' };
+  return { value: null, source: null };
+}
+function monthStatus(ym) {
+  const { value } = monthSaved(ym);
+  const target = monthTarget(ym);
+  const isCurrent = ym === NOW_YM();
+  if (value == null) return isCurrent ? 'pending' : 'empty';
+  if (target > 0 && value >= target) return 'hit';
+  return isCurrent ? 'pending' : 'miss';
+}
+function monthInfo(ym) {
+  const s = monthSaved(ym);
+  const target = monthTarget(ym);
+  return { ym, saved: s.value, source: s.source, target, status: monthStatus(ym), rate: (s.value != null && target > 0) ? s.value / target : null };
+}
+function reflectionFor(ym) { return state.journal.find(j => j.kind === 'reflection' && j.ym === ym); }
+function unreflectedMisses() {
+  return lastMonths(6).filter(ym => monthStatus(ym) === 'miss' && !reflectionFor(ym));
+}
+function streak() {
+  // 지난달부터 거꾸로 연속 달성 개월 수 (이번 달이 이미 달성이면 포함)
+  let n = 0;
+  if (monthStatus(NOW_YM()) === 'hit') n++;
+  let ym = addMonths(NOW_YM(), -1);
+  for (let i = 0; i < 120; i++) { if (monthStatus(ym) !== 'hit') break; n++; ym = addMonths(ym, -1); }
+  return n;
+}
+function goalSaved(g) { return g.deposits.reduce((a, d) => a + d.amount, 0); }
+
+/* =====================================================================
+   차트 공통 — 툴팁
+   ===================================================================== */
+const tipEl = document.getElementById('tip');
+function showTip(html, x, y) {
+  tipEl.innerHTML = html;
+  tipEl.classList.add('show');
+  const r = tipEl.getBoundingClientRect();
+  let left = x - r.width / 2, top = y - r.height - 14;
+  left = Math.max(8, Math.min(window.innerWidth - r.width - 8, left));
+  if (top < 8) top = y + 18;
+  tipEl.style.left = left + 'px'; tipEl.style.top = top + 'px';
+}
+function hideTip() { tipEl.classList.remove('show'); }
+document.addEventListener('pointerover', e => {
+  const t = e.target.closest('[data-tip]');
+  if (!t) return;
+  const r = t.getBoundingClientRect();
+  showTip(t.dataset.tip, r.left + r.width / 2, r.top);
+});
+document.addEventListener('pointerout', e => { if (e.target.closest('[data-tip]')) hideTip(); });
+window.addEventListener('scroll', hideTip, { passive: true });
+const tipRows = (title, rows) => `<b>${esc(title)}</b>` + rows.map(([k, v]) => `<div class="row"><span>${esc(k)}</span><span>${v}</span></div>`).join('');
+
+function niceMax(v) {
+  if (v <= 0) return 1;
+  const p = Math.pow(10, Math.floor(Math.log10(v)));
+  const n = v / p;
+  // 4칸 눈금이 깔끔하게 떨어지는 값만 사용
+  const step = n <= 1 ? 1 : n <= 2 ? 2 : n <= 4 ? 4 : n <= 6 ? 6 : n <= 8 ? 8 : 10;
+  return step * p;
+}
+function chartWidth(el) { return Math.max(260, Math.round(el.clientWidth || el.parentElement?.clientWidth || 320)); }
+
+/* ---------- 막대: 월별 저금액 vs 목표 ---------- */
+function renderSavedBars(el, months) {
+  const data = months.map(monthInfo);
+  const W = chartWidth(el), H = 200, padL = 36, padR = 4, padT = 10, padB = 24;
+  const vals = data.flatMap(d => [d.saved ?? 0, d.target ?? 0]);
+  const minV = Math.min(0, ...data.map(d => d.saved ?? 0));
+  const maxV = niceMax(Math.max(...vals, 1));
+  const lo = minV < 0 ? -niceMax(-minV) : 0;
+  const y = v => padT + (H - padT - padB) * (1 - (v - lo) / (maxV - lo));
+  const n = data.length, slot = (W - padL - padR) / n;
+  const bw = Math.min(26, Math.max(6, slot * 0.56));
+  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="월별 저금액과 목표 막대 차트">`;
+  const ticks = 4;
+  for (let i = 0; i <= ticks; i++) {
+    const v = lo + (maxV - lo) * i / ticks, yy = y(v);
+    s += `<line x1="${padL}" x2="${W - padR}" y1="${yy}" y2="${yy}" stroke="var(--grid)"/>`;
+    s += `<text x="${padL - 6}" y="${yy + 4}" text-anchor="end">${man(v)}</text>`;
+  }
+  const y0 = y(0);
+  data.forEach((d, i) => {
+    const cx = padL + slot * i + slot / 2;
+    const color = d.status === 'hit' ? 'var(--hit)' : d.status === 'miss' ? 'var(--miss)' : d.status === 'pending' ? 'var(--pending)' : 'var(--surface-3)';
+    if (d.saved != null && d.saved !== 0) {
+      const top = y(Math.max(d.saved, 0)), bot = y(Math.min(d.saved, 0));
+      const h = Math.max(2, bot - top);
+      const r = Math.min(4, bw / 2, h);
+      // 기준선에 붙은 쪽은 각지게, 데이터 끝은 4px 라운드
+      if (d.saved > 0) s += `<path d="M${cx - bw / 2},${y0} V${top + r} Q${cx - bw / 2},${top} ${cx - bw / 2 + r},${top} H${cx + bw / 2 - r} Q${cx + bw / 2},${top} ${cx + bw / 2},${top + r} V${y0} Z" fill="${color}"/>`;
+      else s += `<path d="M${cx - bw / 2},${y0} V${bot - r} Q${cx - bw / 2},${bot} ${cx - bw / 2 + r},${bot} H${cx + bw / 2 - r} Q${cx + bw / 2},${bot} ${cx + bw / 2},${bot - r} V${y0} Z" fill="${color}"/>`;
+    }
+    if (d.target > 0) {
+      const ty = y(d.target);
+      s += `<line x1="${cx - bw / 2 - 4}" x2="${cx + bw / 2 + 4}" y1="${ty}" y2="${ty}" stroke="var(--target)" stroke-width="2" stroke-linecap="round" stroke-dasharray="3 3"/>`;
+    }
+    const step = n > 12 ? Math.ceil(n / 8) : 1;
+    if (i % step === 0 || i === n - 1) s += `<text x="${cx}" y="${H - 6}" text-anchor="middle">${axisMonth(d.ym, n)}</text>`;
+    const st = { hit: '✓ 달성', miss: '✕ 미달성', pending: '◷ 진행 중', empty: '기록 없음' }[d.status];
+    const tip = tipRows(ymLabel(d.ym), [['저금', won(d.saved)], ['목표', won(d.target)], ['달성률', d.rate != null ? Math.round(d.rate * 100) + '%' : '-'], ['상태', st]]);
+    s += `<rect x="${cx - slot / 2}" y="${padT}" width="${slot}" height="${H - padT - padB}" fill="transparent" data-tip="${esc(tip)}"/>`;
+  });
+  s += `<line x1="${padL}" x2="${W - padR}" y1="${y0}" y2="${y0}" stroke="var(--line)"/>`;
+  el.innerHTML = s + '</svg>';
+}
+function savedBarsLegend() {
+  return `<span><i style="background:var(--hit)"></i>달성</span><span><i style="background:var(--miss)"></i>미달성</span><span><i style="background:var(--pending)"></i>진행 중</span><span><i class="dash"></i>목표</span>`;
+}
+
+/* ---------- 선: 범용 라인 차트 (크로스헤어 + 툴팁) ---------- */
+function renderLine(el, { labels, series, fmtAxis = man, fmtTip = won, refLine = null, title = '' }) {
+  const W = chartWidth(el), H = 190, padL = 38, padR = 8, padT = 12, padB = 24;
+  const all = series.flatMap(s => s.values.filter(v => v != null));
+  if (refLine != null) all.push(refLine);
+  const maxV = niceMax(Math.max(...all, 1));
+  const minRaw = Math.min(0, ...all);
+  const lo = minRaw < 0 ? -niceMax(-minRaw) : 0;
+  const n = labels.length;
+  const x = i => padL + (n === 1 ? (W - padL - padR) / 2 : (W - padL - padR) * i / (n - 1));
+  const y = v => padT + (H - padT - padB) * (1 - (v - lo) / (maxV - lo));
+  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(title)}">`;
+  for (let i = 0; i <= 4; i++) {
+    const v = lo + (maxV - lo) * i / 4, yy = y(v);
+    s += `<line x1="${padL}" x2="${W - padR}" y1="${yy}" y2="${yy}" stroke="var(--grid)"/><text x="${padL - 6}" y="${yy + 4}" text-anchor="end">${fmtAxis(v)}</text>`;
+  }
+  if (refLine != null) s += `<line x1="${padL}" x2="${W - padR}" y1="${y(refLine)}" y2="${y(refLine)}" stroke="var(--target)" stroke-width="1.5" stroke-dasharray="4 4"/>`;
+  series.forEach((se, si) => {
+    const pts = se.values.map((v, i) => v == null ? null : [x(i), y(v)]);
+    const segs = []; let cur = [];
+    pts.forEach(p => { if (p) cur.push(p); else if (cur.length) { segs.push(cur); cur = []; } });
+    if (cur.length) segs.push(cur);
+    segs.forEach(seg => {
+      const d = seg.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join('');
+      if (se.area) {
+        const gid = 'g' + Math.random().toString(36).slice(2, 8);
+        s += `<defs><linearGradient id="${gid}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${se.color}" stop-opacity=".28"/><stop offset="1" stop-color="${se.color}" stop-opacity="0"/></linearGradient></defs>`;
+        s += `<path d="${d}L${seg[seg.length - 1][0]},${y(Math.max(lo, 0))}L${seg[0][0]},${y(Math.max(lo, 0))}Z" fill="url(#${gid})"/>`;
+      }
+      s += `<path d="${d}" fill="none" stroke="${se.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" ${se.dash ? 'stroke-dasharray="5 4"' : ''}/>`;
+    });
+    // 마지막 값에만 점 + 직접 라벨
+    for (let i = pts.length - 1; i >= 0; i--) if (pts[i]) {
+      if (!se.dash) s += `<circle cx="${pts[i][0]}" cy="${pts[i][1]}" r="4" fill="${se.color}" stroke="var(--surface)" stroke-width="2"/>`;
+      break;
+    }
+  });
+  const step = n > 12 ? Math.ceil(n / 8) : 1;
+  labels.forEach((l, i) => { if (i % step === 0 || i === n - 1) s += `<text x="${x(i)}" y="${H - 6}" text-anchor="middle">${l}</text>`; });
+  s += `<line class="xh" x1="0" x2="0" y1="${padT}" y2="${H - padB}" stroke="var(--text-2)" stroke-width="1" opacity="0"/>`;
+  series.forEach((se, si) => { s += `<circle class="xh-dot" data-si="${si}" r="4.5" fill="${se.color}" stroke="var(--surface)" stroke-width="2" opacity="0"/>`; });
+  s += `<rect class="hit-area" x="${padL}" y="${padT}" width="${W - padL - padR}" height="${H - padT - padB}" fill="transparent"/>`;
+  el.innerHTML = s + '</svg>';
+
+  const svg = el.querySelector('svg'), xh = svg.querySelector('.xh'), dots = svg.querySelectorAll('.xh-dot');
+  const move = e => {
+    const r = svg.getBoundingClientRect();
+    const px = (e.clientX - r.left) * W / r.width;
+    let i = Math.round(n === 1 ? 0 : (px - padL) / ((W - padL - padR) / (n - 1)));
+    i = Math.max(0, Math.min(n - 1, i));
+    xh.setAttribute('x1', x(i)); xh.setAttribute('x2', x(i)); xh.setAttribute('opacity', .35);
+    dots.forEach(dt => {
+      const v = series[dt.dataset.si].values[i];
+      if (v == null) { dt.setAttribute('opacity', 0); return; }
+      dt.setAttribute('cx', x(i)); dt.setAttribute('cy', y(v)); dt.setAttribute('opacity', 1);
+    });
+    const rows = series.map(se => [se.name, fmtTip(se.values[i])]);
+    showTip(tipRows(labels.full ? labels.full[i] : labels[i], rows), r.left + x(i) * r.width / W, r.top + padT * r.height / H);
+  };
+  const leave = () => { xh.setAttribute('opacity', 0); dots.forEach(d => d.setAttribute('opacity', 0)); hideTip(); };
+  const ha = svg.querySelector('.hit-area');
+  ha.addEventListener('pointermove', move);
+  ha.addEventListener('pointerdown', move);
+  ha.addEventListener('pointerleave', leave);
+}
+
+/* ---------- 묶음 막대: 수입 vs 지출 ---------- */
+function renderGroupedBars(el, labels, a, b, names) {
+  const W = chartWidth(el), H = 190, padL = 38, padR = 4, padT = 10, padB = 24;
+  const maxV = niceMax(Math.max(1, ...a, ...b));
+  const y = v => padT + (H - padT - padB) * (1 - v / maxV);
+  const n = labels.length, slot = (W - padL - padR) / n;
+  const bw = Math.min(14, Math.max(4, slot * 0.3));
+  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="월별 수입과 지출">`;
+  for (let i = 0; i <= 4; i++) { const v = maxV * i / 4; s += `<line x1="${padL}" x2="${W - padR}" y1="${y(v)}" y2="${y(v)}" stroke="var(--grid)"/><text x="${padL - 6}" y="${y(v) + 4}" text-anchor="end">${man(v)}</text>`; }
+  const bar = (x0, v, c) => {
+    if (!v) return '';
+    const top = y(v), h = y(0) - top, r = Math.min(4, bw / 2, h);
+    return `<path d="M${x0},${y(0)}V${top + r}Q${x0},${top} ${x0 + r},${top}H${x0 + bw - r}Q${x0 + bw},${top} ${x0 + bw},${top + r}V${y(0)}Z" fill="${c}"/>`;
+  };
+  labels.forEach((l, i) => {
+    const cx = padL + slot * i + slot / 2;
+    s += bar(cx - bw - 1, a[i], 'var(--series-1)') + bar(cx + 1, b[i], 'var(--series-2)');
+    const step = n > 12 ? Math.ceil(n / 8) : 1;
+    if (i % step === 0 || i === n - 1) s += `<text x="${cx}" y="${H - 6}" text-anchor="middle">${l}</text>`;
+    const tip = tipRows(labels.full[i], [[names[0], won(a[i])], [names[1], won(b[i])], ['차이', won(a[i] - b[i])]]);
+    s += `<rect x="${cx - slot / 2}" y="${padT}" width="${slot}" height="${H - padT - padB}" fill="transparent" data-tip="${esc(tip)}"/>`;
+  });
+  s += `<line x1="${padL}" x2="${W - padR}" y1="${y(0)}" y2="${y(0)}" stroke="var(--line)"/>`;
+  el.innerHTML = s + '</svg>';
+}
+
+/* ---------- 도넛 링 ---------- */
+function ringSVG(rate, status) {
+  const r = 54, c = 2 * Math.PI * r;
+  const p = Math.max(0, Math.min(1, rate || 0));
+  const color = status === 'hit' ? 'var(--hit)' : status === 'miss' ? 'var(--miss)' : 'var(--accent)';
+  return `<svg viewBox="0 0 132 132" aria-hidden="true">
+    <circle cx="66" cy="66" r="${r}" fill="none" stroke="var(--surface-2)" stroke-width="12"/>
+    <circle cx="66" cy="66" r="${r}" fill="none" stroke="${color}" stroke-width="12" stroke-linecap="round"
+      stroke-dasharray="${c}" stroke-dashoffset="${c}" style="transition:stroke-dashoffset .9s cubic-bezier(.2,.8,.2,1)" data-to="${c * (1 - p)}"/>
+  </svg>`;
+}
+function animateRings(root) {
+  requestAnimationFrame(() => requestAnimationFrame(() => root.querySelectorAll('[data-to]').forEach(c => c.style.strokeDashoffset = c.dataset.to)));
+}
+
+/* =====================================================================
+   렌더 — 홈
+   ===================================================================== */
+function renderHome() {
+  const ym = NOW_YM();
+  const info = monthInfo(ym);
+  const now = new Date();
+  document.getElementById('home-eyebrow').textContent = `${now.getFullYear()}. ${pad(now.getMonth() + 1)}. ${pad(now.getDate())}`;
+
+  // 반성 일기 배너
+  const misses = unreflectedMisses();
+  const banner = document.getElementById('reflect-banner');
+  if (misses.length) {
+    const m = monthInfo(misses[misses.length - 1]);
+    banner.innerHTML = `<div class="banner">
+      <div class="banner-icon">${icon('feather')}</div>
+      <div><b>${mLabel(m.ym)} 목표를 ${won(Math.max(0, m.target - (m.saved || 0)))} 놓쳤어요</b><span>${misses.length > 1 ? `돌아보지 않은 달이 ${misses.length}개 있어요` : '왜 그랬는지 짧게 적어볼까요?'}</span></div>
+      <button class="btn sm primary" data-reflect="${m.ym}">쓰기</button>
+    </div>`;
+  } else banner.innerHTML = '';
+
+  // 히어로
+  const ring = document.getElementById('hero-ring');
+  ring.innerHTML = ringSVG(info.rate, info.status) + `<div class="ring-center"><div><div class="ring-pct">${info.rate != null ? Math.round(info.rate * 100) : 0}<small>%</small></div><div class="ring-label">달성률</div></div></div>`;
+  animateRings(ring);
+  const chip = { hit: ['hit', 'check', '목표 달성!'], pending: ['pending', 'clock', '진행 중'], miss: ['miss', 'x', '미달성'], empty: ['', 'clock', '기록 전'] }[info.status];
+  document.getElementById('hero-chip').innerHTML = `<span class="chip ${chip[0]}">${icon(chip[1])}${chip[2]}</span>${info.source === 'link' ? ' <span class="src-tag link">가계부</span>' : ''}`;
+  document.getElementById('hero-amount').innerHTML = info.saved != null ? `${Math.round(info.saved).toLocaleString('ko-KR')}<span class="unit">원</span>` : `<span style="color:var(--muted)">0<span class="unit">원</span></span>`;
+  document.getElementById('hero-target').textContent = `목표 ${won(info.target)}`;
+
+  const dim = daysInMonth(ym), left = dim - now.getDate() + 1;
+  const remain = Math.max(0, info.target - (info.saved || 0));
+  document.getElementById('hero-meta').innerHTML = `
+    <div><div class="meta-k">남은 금액</div><div class="meta-v">${remain ? man(remain) + '원' : '0원'}</div></div>
+    <div><div class="meta-k">남은 날</div><div class="meta-v">${left}일</div></div>
+    <div><div class="meta-k">연속 달성</div><div class="meta-v">${streak()}개월</div></div>`;
+  document.getElementById('hero-record-btn').innerHTML = `${icon('coin')}저금액 기록`;
+  document.getElementById('hero-target-btn').innerHTML = `${icon('target')}목표`;
+
+  // 12개월 그리드
+  const months = lastMonths(12);
+  const hits = months.filter(m => monthStatus(m) === 'hit').length;
+  const judged = months.filter(m => ['hit', 'miss'].includes(monthStatus(m))).length;
+  document.getElementById('year-summary').textContent = judged ? `${judged}개월 중 ${hits}번 달성` : '아직 기록이 없어요';
+  document.getElementById('year-grid').innerHTML = months.map(m => {
+    const i = monthInfo(m);
+    const fill = Math.max(0, Math.min(1, i.rate || 0)) * 100;
+    const st = i.status === 'hit' ? icon('check') + Math.round(i.rate * 100) + '%' : i.status === 'miss' ? icon('x') + Math.round((i.rate || 0) * 100) + '%' : i.rate != null ? Math.round(i.rate * 100) + '%' : '–';
+    const tip = tipRows(ymLabel(m), [['저금', won(i.saved)], ['목표', won(i.target)]]);
+    return `<div class="ym-cell ${i.status} ${m === NOW_YM() ? 'now' : ''}" data-tip="${esc(tip)}" data-edit-month="${m}"><div class="fill" style="height:${fill}%"></div><div class="m">${mLabel(m)}</div><div class="s">${st}</div></div>`;
+  }).join('');
+
+  document.getElementById('home-bars-legend').innerHTML = savedBarsLegend();
+  renderSavedBars(document.getElementById('home-bars'), lastMonths(6));
+
+  // 목표 요약
+  const hg = document.getElementById('home-goals');
+  hg.innerHTML = state.goals.length ? state.goals.slice(0, 3).map(goalCard).join('') :
+    `<div class="card empty-state">${icon('target')}<div>큰 목표(여행, 비상금, 내 집 마련…)를 추가해 보세요</div><button class="btn sm" style="margin-top:12px" data-action="add-goal">목표 추가</button></div>`;
+
+  // 최근 일기
+  const hj = document.getElementById('home-journal');
+  const recent = [...state.journal].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 2);
+  hj.innerHTML = recent.length ? recent.map(entryCard).join('') : `<div class="card empty-state">${icon('book')}<div>아직 적은 기록이 없어요</div></div>`;
+}
+
+/* =====================================================================
+   렌더 — 리포트
+   ===================================================================== */
+let reportRange = 12;
+function renderReport() {
+  const months = lastMonths(reportRange);
+  const infos = months.map(monthInfo);
+  const recorded = infos.filter(i => i.saved != null);
+  const judged = infos.filter(i => i.status === 'hit' || i.status === 'miss');
+  const hits = judged.filter(i => i.status === 'hit').length;
+  const total = recorded.reduce((a, i) => a + i.saved, 0);
+  const avg = recorded.length ? total / recorded.length : 0;
+  document.getElementById('report-tiles').innerHTML = `
+    <div class="tile"><div class="k">달성률</div><div class="v">${judged.length ? Math.round(hits / judged.length * 100) : 0}<small>%</small></div><div class="k" style="margin-top:2px">${hits}/${judged.length}개월</div></div>
+    <div class="tile"><div class="k">총 저금</div><div class="v">${man(total)}<small>원</small></div><div class="k" style="margin-top:2px">${recorded.length}개월 기록</div></div>
+    <div class="tile"><div class="k">월 평균</div><div class="v">${man(avg)}<small>원</small></div><div class="k" style="margin-top:2px">연속 ${streak()}개월</div></div>`;
+
+  document.getElementById('r-bars-legend').innerHTML = savedBarsLegend();
+  renderSavedBars(document.getElementById('r-bars'), months);
+  document.getElementById('r-bars-table').innerHTML = `<details class="table-view"><summary>표로 보기</summary><table><tr><th>월</th><th>저금</th><th>목표</th><th>달성률</th></tr>${infos.map(i => `<tr><td>${ymLabel(i.ym)}</td><td>${won(i.saved)}</td><td>${won(i.target)}</td><td>${i.rate != null ? Math.round(i.rate * 100) + '%' : '-'}</td></tr>`).join('')}</table></details>`;
+
+  // 누적
+  let cs = 0, ct = 0;
+  const cumS = [], cumT = [];
+  infos.forEach(i => { cs += i.saved || 0; ct += i.target || 0; cumS.push(cs); cumT.push(ct); });
+  const labels = months.map(m => axisMonth(m, months.length)); labels.full = months.map(ymLabel);
+  document.getElementById('cum-sub').textContent = ct ? `목표 대비 ${Math.round(cs / ct * 100)}%` : '';
+  renderLine(document.getElementById('r-cum'), {
+    labels, title: '누적 저금액',
+    series: [{ name: '실제 누적', values: cumS, color: 'var(--accent)', area: true }, { name: '목표 누적', values: cumT, color: 'var(--target)', dash: true }],
+  });
+
+  // 달성률
+  renderLine(document.getElementById('r-rate'), {
+    labels, title: '월별 달성률', refLine: 100,
+    fmtAxis: v => Math.round(v) + '%', fmtTip: v => v == null ? '-' : Math.round(v) + '%',
+    series: [{ name: '달성률', values: infos.map(i => i.rate != null ? Math.round(i.rate * 100) : null), color: 'var(--accent)' }],
+  });
+
+  renderLinkedReport(months, labels);
+}
+
+function renderLinkedReport(months, labels) {
+  const box = document.getElementById('linked-report');
+  if (!linkCache) {
+    box.innerHTML = `<div class="card empty-state">${icon('chart')}<div>가계부를 연동하면 수입·지출 흐름과<br>미달성 달의 지출 원인을 함께 볼 수 있어요</div><button class="btn sm" style="margin-top:12px" data-goto="settings">연동하러 가기</button></div>`;
+    return;
+  }
+  const inc = months.map(m => linkedMonth(m)?.income || 0);
+  const exp = months.map(m => linkedMonth(m)?.expense || 0);
+  const ratio = months.map((m, i) => inc[i] > 0 ? Math.round((inc[i] - exp[i]) / inc[i] * 100) : null);
+
+  // 지출 카테고리: 이번 달 vs 직전 3개월 평균
+  const cur = NOW_YM();
+  const curCats = linkedMonth(cur)?.cats || {};
+  const prev = [1, 2, 3].map(k => linkedMonth(addMonths(cur, -k))?.cats || {});
+  const allCats = new Set([...Object.keys(curCats), ...prev.flatMap(Object.keys)]);
+  const catRows = [...allCats].map(c => ({ c, now: curCats[c] || 0, avg: prev.reduce((a, p) => a + (p[c] || 0), 0) / 3 }))
+    .sort((a, b) => b.now - a.now).slice(0, 6);
+  const catMax = Math.max(1, ...catRows.map(r => Math.max(r.now, r.avg)));
+
+  box.innerHTML = `
+    <div class="section-label">가계부 연동 · ${new Date(linkCache.fetchedAt).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })} 기준</div>
+    <div class="card">
+      <div class="card-head"><h2 class="card-title">수입과 지출</h2></div>
+      <div class="legend"><span><i style="background:var(--series-1)"></i>수입</span><span><i style="background:var(--series-2)"></i>지출</span></div>
+      <div class="chart" id="r-io"></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h2 class="card-title">저축률</h2><span class="card-sub">(수입−지출) ÷ 수입</span></div>
+      <div class="chart" id="r-ratio"></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h2 class="card-title">이번 달 지출 카테고리</h2><span class="card-sub">막대 끝 선 = 직전 3개월 평균</span></div>
+      ${catRows.length ? catRows.map(r => {
+        const diff = r.avg ? Math.round((r.now - r.avg) / r.avg * 100) : null;
+        const tip = tipRows(r.c, [['이번 달', won(r.now)], ['3개월 평균', won(r.avg)], ['변화', diff == null ? '-' : (diff > 0 ? '+' : '') + diff + '%']]);
+        return `<div class="hbar" data-tip="${esc(tip)}"><div class="name">${esc(r.c)}</div>
+          <div class="track" style="position:relative"><div class="bar" style="width:${r.now / catMax * 100}%"></div><div style="position:absolute;top:-2px;bottom:-2px;width:2px;border-radius:1px;background:var(--text-2);left:calc(${r.avg / catMax * 100}% - 1px)"></div></div>
+          <div class="val">${man(r.now)}${diff != null && Math.abs(diff) >= 10 ? `<div style="font-size:10px;color:${diff > 0 ? 'var(--miss)' : 'var(--hit)'}">${diff > 0 ? '▲' : '▼'}${Math.abs(diff)}%</div>` : ''}</div></div>`;
+      }).join('') : '<div class="empty-state">이번 달 지출 기록이 없어요</div>'}
+    </div>`;
+  renderGroupedBars(document.getElementById('r-io'), labels, inc, exp, ['수입', '지출']);
+  renderLine(document.getElementById('r-ratio'), {
+    labels, title: '저축률', fmtAxis: v => Math.round(v) + '%', fmtTip: v => v == null ? '-' : v + '%',
+    series: [{ name: '저축률', values: ratio, color: 'var(--series-1)', area: true }],
+  });
+}
+
+/* =====================================================================
+   렌더 — 목표
+   ===================================================================== */
+function goalProjection(g) {
+  const saved = goalSaved(g), remain = Math.max(0, g.target - saved);
+  // 최근 3개월 평균 납입 속도로 완료 예상
+  const since = addMonths(NOW_YM(), -2);
+  const recent = g.deposits.filter(d => d.date.slice(0, 7) >= since).reduce((a, d) => a + d.amount, 0) / 3;
+  let monthsLeft = null, needPerMonth = null;
+  if (g.deadline) {
+    const [y, m] = g.deadline.split('-').map(Number);
+    const n = new Date();
+    monthsLeft = Math.max(1, (y - n.getFullYear()) * 12 + (m - 1 - n.getMonth()) + 1);
+    needPerMonth = remain / monthsLeft;
+  }
+  const eta = recent > 0 && remain > 0 ? addMonths(NOW_YM(), Math.ceil(remain / recent)) : null;
+  return { saved, remain, recent, monthsLeft, needPerMonth, eta, pct: g.target ? saved / g.target : 0 };
+}
+function goalCard(g) {
+  const p = goalProjection(g);
+  const done = p.remain === 0;
+  const onTrack = !g.deadline || done || (p.eta && p.eta <= g.deadline.slice(0, 7));
+  return `<div class="card goal" data-goal="${g.id}">
+    <div class="goal-top">
+      <div class="goal-emoji">${esc(g.emoji || '🎯')}</div>
+      <div style="min-width:0"><div class="goal-name">${esc(g.name)}</div><div class="goal-dl">${g.deadline ? `${g.deadline.replace(/-/g, '.')}까지` : '기한 없음'}</div></div>
+      <div class="goal-pct">${Math.round(p.pct * 100)}%</div>
+    </div>
+    <div class="progress"><div style="width:${Math.min(100, p.pct * 100)}%;${done ? '' : onTrack ? '' : 'background:var(--miss)'}"></div></div>
+    <div class="goal-foot">
+      <span><b>${man(p.saved)}</b> / ${man(g.target)}원</span>
+      <span>${done ? '🎉 달성 완료' : p.needPerMonth != null ? `월 <b>${man(p.needPerMonth)}원</b>씩 필요` : p.eta ? `${ymLabel(p.eta)} 예상` : '납입 기록을 남겨보세요'}</span>
+    </div>
+  </div>`;
+}
+function renderGoals() {
+  const ov = document.getElementById('goals-overview');
+  const goals = state.goals;
+  if (!goals.length) {
+    ov.innerHTML = `<div class="empty-state">${icon('target')}<div>아직 목표가 없어요</div><button class="btn sm primary" style="margin-top:12px" data-action="add-goal">첫 목표 만들기</button></div>`;
+    document.getElementById('goals-list').innerHTML = '';
+    return;
+  }
+  const tot = goals.reduce((a, g) => a + g.target, 0), sv = goals.reduce((a, g) => a + Math.min(g.target, goalSaved(g)), 0);
+  // 누적 납입 추이 (최근 12개월, 목표별 합산)
+  const months = lastMonths(12);
+  let run = goals.reduce((a, g) => a + g.deposits.filter(d => d.date.slice(0, 7) < months[0]).reduce((x, d) => x + d.amount, 0), 0);
+  const cum = months.map(m => { run += goals.reduce((a, g) => a + g.deposits.filter(d => d.date.slice(0, 7) === m).reduce((x, d) => x + d.amount, 0), 0); return run; });
+  ov.innerHTML = `<div class="card-head"><h2 class="card-title">전체 목표 진행</h2><span class="card-sub">${goals.length}개 목표</span></div>
+    <div style="display:flex;align-items:baseline;gap:8px"><div class="hero-amount">${man(sv)}<span class="unit">원</span></div><div class="hero-target">/ ${man(tot)}원 · ${tot ? Math.round(sv / tot * 100) : 0}%</div></div>
+    <div class="progress"><div style="width:${tot ? Math.min(100, sv / tot * 100) : 0}%"></div></div>
+    <div class="card-sub" style="margin:14px 0 6px">목표 저금 누적 (최근 12개월)</div>
+    <div class="chart" id="goals-cum"></div>`;
+  const labels = months.map(m => axisMonth(m, months.length)); labels.full = months.map(ymLabel);
+  renderLine(document.getElementById('goals-cum'), { labels, title: '목표 저금 누적', series: [{ name: '누적 납입', values: cum, color: 'var(--accent)', area: true }] });
+  document.getElementById('goals-list').innerHTML = goals.map(goalCard).join('');
+}
+
+/* =====================================================================
+   렌더 — 일기
+   ===================================================================== */
+const MOODS = ['😣', '😕', '😐', '🙂', '😄'];
+let journalKind = 'all';
+function entryCard(j) {
+  const isRef = j.kind === 'reflection';
+  const ctx = isRef && j.ym ? monthInfo(j.ym) : null;
+  return `<div class="card entry" data-entry="${j.id}">
+    <div class="entry-top">
+      <span class="entry-mood">${MOODS[(j.mood || 3) - 1]}</span>
+      <span class="chip ${isRef ? 'miss' : ''}">${isRef ? `${mLabel(j.ym)} 반성` : '메모'}</span>
+      ${ctx && ctx.saved != null ? `<span class="card-sub">${Math.round((ctx.rate || 0) * 100)}% 달성</span>` : ''}
+      <span class="entry-date">${j.date.replace(/-/g, '.')}</span>
+    </div>
+    ${j.title ? `<h3 class="entry-title">${esc(j.title)}</h3>` : ''}
+    <div class="entry-body">${esc(j.body)}</div>
+    ${j.action ? `<div class="entry-action"><b>다음엔 이렇게</b>${esc(j.action)}</div>` : ''}
+  </div>`;
+}
+function renderJournal() {
+  const list = [...state.journal].filter(j => journalKind === 'all' || j.kind === journalKind).sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
+  // 기분 흐름 (최근 12개월, 월별 평균)
+  const months = lastMonths(12);
+  const moodAvg = months.map(m => { const es = state.journal.filter(j => j.date.slice(0, 7) === m); return es.length ? es.reduce((a, j) => a + (j.mood || 3), 0) / es.length : null; });
+  const mc = document.getElementById('mood-card');
+  if (state.journal.length) {
+    mc.style.display = '';
+    mc.innerHTML = `<div class="card-head"><h2 class="card-title">마음 날씨와 달성률</h2><span class="card-sub">최근 12개월</span></div>
+      <div class="mood-strip">${months.map((m, i) => {
+        const st = monthStatus(m);
+        const tip = tipRows(ymLabel(m), [['평균 기분', moodAvg[i] != null ? MOODS[Math.round(moodAvg[i]) - 1] : '-'], ['저금 상태', { hit: '✓ 달성', miss: '✕ 미달성', pending: '진행 중', empty: '기록 없음' }[st]]]);
+        return `<div data-tip="${esc(tip)}" style="flex:1;min-width:0;text-align:center"><div style="font-size:18px;height:26px;${moodAvg[i] == null ? 'opacity:.25' : ''}">${moodAvg[i] != null ? MOODS[Math.round(moodAvg[i]) - 1] : '·'}</div><div style="height:4px;border-radius:2px;margin:4px 3px;background:${st === 'hit' ? 'var(--hit)' : st === 'miss' ? 'var(--miss)' : 'var(--surface-3)'}"></div><div class="card-sub">${Number(m.slice(5))}</div></div>`;
+      }).join('')}</div>`;
+  } else mc.style.display = 'none';
+  document.getElementById('journal-list').innerHTML = list.length ? list.map(entryCard).join('') :
+    `<div class="card empty-state">${icon('feather')}<div>${journalKind === 'reflection' ? '목표를 놓친 달에 반성 일기를 써보세요' : '오늘의 소비, 다짐, 아무거나 적어보세요'}</div></div>`;
+}
+
+/* =====================================================================
+   렌더 — 설정
+   ===================================================================== */
+function renderSettings() {
+  document.getElementById('set-target').value = state.settings.monthlyTarget ? state.settings.monthlyTarget.toLocaleString('ko-KR') : '';
+  document.getElementById('link-code').value = state.settings.linkCode || '';
+  document.getElementById('link-mode').value = state.settings.linkMode;
+  const on = !!linkCache;
+  document.getElementById('link-dot').className = 'dot' + (on ? ' on' : '');
+  document.getElementById('link-text').textContent = on ? (linkCache.source === 'file' ? '백업 파일 연동' : '연동됨') : '연동 안 됨';
+  const months = lastMonths(12).reverse();
+  document.getElementById('month-records').innerHTML = months.map(m => {
+    const i = monthInfo(m);
+    const tag = i.source === 'manual' ? '<span class="src-tag">직접</span>' : i.source === 'link' ? '<span class="src-tag link">가계부</span>' : '';
+    const st = { hit: `<span class="chip hit">${icon('check')}달성</span>`, miss: `<span class="chip miss">${icon('x')}미달성</span>`, pending: `<span class="chip pending">진행 중</span>`, empty: '' }[i.status];
+    return `<div class="list-row" data-edit-month="${m}" style="cursor:pointer"><div class="grow"><div>${ymLabel(m)} ${tag}</div><div class="sub">목표 ${won(i.target)}${state.months[m]?.target != null ? ' (개별)' : ''}</div></div><div style="text-align:right"><div class="amt">${won(i.saved)}</div>${st}</div></div>`;
+  }).join('');
+}
+
+function renderTheme() {
+  const t = localStorage.getItem(THEME_KEY) || 'auto';
+  if (t === 'auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', t);
+  document.getElementById('theme-btn').innerHTML = icon(t === 'dark' ? 'moon' : t === 'light' ? 'sun' : 'auto');
+  const dark = t === 'dark' || (t === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
+  document.querySelector('meta[name="theme-color"]').content = dark ? '#0f1412' : '#f4f2ec';
+}
+
+let currentView = 'home';
+function render() {
+  if (currentView === 'home') renderHome();
+  if (currentView === 'report') renderReport();
+  if (currentView === 'goals') renderGoals();
+  if (currentView === 'journal') renderJournal();
+  if (currentView === 'settings') renderSettings();
+}
+function go(view) {
+  currentView = view;
+  document.querySelectorAll('.view').forEach(v => v.classList.toggle('on', v.id === 'view-' + view));
+  document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('on', b.dataset.view === view));
+  document.getElementById('fab').style.display = view === 'settings' ? 'none' : '';
+  hideTip();
+  window.scrollTo({ top: 0 });
+  render();
+}
+
+/* =====================================================================
+   시트(모달) & 폼
+   ===================================================================== */
+const sheet = document.getElementById('sheet'), backdrop = document.getElementById('backdrop'), sheetBody = document.getElementById('sheet-body');
+function openSheet(html, onMount) {
+  sheetBody.innerHTML = html;
+  sheet.classList.add('show'); backdrop.classList.add('show');
+  hideTip();
+  onMount && onMount(sheetBody);
+}
+function closeSheet() { sheet.classList.remove('show'); backdrop.classList.remove('show'); }
+backdrop.addEventListener('click', closeSheet);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSheet(); });
+
+function moneyInput(el) {
+  el.addEventListener('input', () => {
+    const neg = el.value.trim().startsWith('-');
+    const n = el.value.replace(/[^\d]/g, '');
+    el.value = n ? (neg ? '-' : '') + Number(n).toLocaleString('ko-KR') : (neg ? '-' : '');
+  });
+}
+function quickAmounts(target, amounts) {
+  return `<div class="quick">${amounts.map(a => `<button type="button" data-add="${a}">+${man(a)}</button>`).join('')}<button type="button" data-add="clear">지우기</button></div>`;
+}
+function bindQuick(root, input) {
+  root.querySelectorAll('[data-add]').forEach(b => b.addEventListener('click', () => {
+    if (b.dataset.add === 'clear') { input.value = ''; return; }
+    const v = (parseNum(input.value) || 0) + Number(b.dataset.add);
+    input.value = v.toLocaleString('ko-KR');
+  }));
+}
+
+/* ---- 월 저금액 기록/수정 ---- */
+function openMonthSheet(ym = NOW_YM()) {
+  const i = monthInfo(ym);
+  const rec = state.months[ym] || {};
+  const l = linkedMonth(ym);
+  openSheet(`
+    <h3>${ymLabel(ym)} 저금</h3>
+    <p class="sheet-desc">이 달에 모은 금액과 목표를 기록해요.</p>
+    ${l ? `<div class="context-box"><div class="row"><span>가계부 수입</span><b>${won(l.income)}</b></div><div class="row"><span>가계부 지출</span><b>${won(l.expense)}</b></div><div class="row"><span>수입 − 지출</span><b>${won(l.income - l.expense)}</b></div></div>` : ''}
+    <div class="field"><label>월 선택</label><input class="input" type="month" id="f-ym" value="${ym}"></div>
+    <div class="field"><label>저금액 ${l ? '(비워두면 가계부 값 사용)' : ''}</label>
+      <input class="input" id="f-saved" inputmode="numeric" placeholder="${l ? won(l.income - l.expense) : '0'}" value="${rec.saved != null ? rec.saved.toLocaleString('ko-KR') : ''}">
+      ${quickAmounts(0, [10000, 50000, 100000, 500000])}
+    </div>
+    <div class="field"><label>이 달의 목표 (비워두면 기본 ${won(state.settings.monthlyTarget)})</label>
+      <input class="input" id="f-target" inputmode="numeric" placeholder="${state.settings.monthlyTarget.toLocaleString('ko-KR')}" value="${rec.target != null ? rec.target.toLocaleString('ko-KR') : ''}">
+    </div>
+    <div class="sheet-actions"><button class="btn" id="f-cancel">취소</button><button class="btn primary" id="f-save">저장</button></div>`,
+  root => {
+    const sv = root.querySelector('#f-saved'), tg = root.querySelector('#f-target'), ymEl = root.querySelector('#f-ym');
+    moneyInput(sv); moneyInput(tg); bindQuick(root, sv);
+    ymEl.addEventListener('change', () => { if (ymEl.value) openMonthSheet(ymEl.value); });
+    root.querySelector('#f-cancel').onclick = closeSheet;
+    root.querySelector('#f-save').onclick = () => {
+      const y = ymEl.value || ym;
+      const s = sv.value.trim() === '' ? null : parseNum(sv.value);
+      const t = tg.value.trim() === '' ? null : parseNum(tg.value);
+      const next = {};
+      if (s != null) next.saved = s;
+      if (t != null) next.target = t;
+      if (Object.keys(next).length) state.months[y] = next; else delete state.months[y];
+      save(); closeSheet(); render();
+      const st = monthStatus(y);
+      if (st === 'hit') toast(`🎉 ${mLabel(y)} 목표 달성!`);
+      else if (st === 'miss' && !reflectionFor(y)) setTimeout(() => openReflectSheet(y), 320);
+      else toast('저장했어요');
+    };
+  });
+}
+
+/* ---- 반성 일기 / 메모 ---- */
+function openReflectSheet(ym, existing) {
+  const i = monthInfo(ym);
+  const l = linkedMonth(ym);
+  const topCats = l ? Object.entries(l.cats || {}).sort((a, b) => b[1] - a[1]).slice(0, 3) : [];
+  const e = existing || reflectionFor(ym) || {};
+  const PROMPTS = ['예상 못한 지출이 있었어요', '충동구매를 했어요', '외식·배달이 많았어요', '목표가 너무 높았어요', '수입이 줄었어요'];
+  openSheet(`
+    <h3>${ymLabel(ym)} 돌아보기</h3>
+    <p class="sheet-desc">자책보다는 다음 달을 위한 기록이에요.</p>
+    <div class="context-box">
+      <div class="row"><span>목표</span><b>${won(i.target)}</b></div>
+      <div class="row"><span>실제 저금</span><b>${won(i.saved)}</b></div>
+      <div class="row"><span>부족한 금액</span><b style="color:var(--miss)">${won(Math.max(0, i.target - (i.saved || 0)))}</b></div>
+      ${topCats.length ? `<div class="row" style="margin-top:6px;padding-top:8px;border-top:1px solid var(--line)"><span>지출 Top</span><b>${topCats.map(([c, v]) => `${esc(c)} ${man(v)}`).join(' · ')}</b></div>` : ''}
+    </div>
+    <div class="field"><label>그때 기분</label><div class="moods" id="f-mood">${MOODS.map((m, k) => `<button type="button" data-v="${k + 1}" class="${(e.mood || 2) === k + 1 ? 'on' : ''}">${m}</button>`).join('')}</div></div>
+    <div class="field"><label>무엇 때문이었나요?</label>
+      <textarea class="textarea" id="f-body" placeholder="솔직하게 적어보세요">${esc(e.body || '')}</textarea>
+      <div class="quick">${PROMPTS.map(p => `<button type="button" data-prompt="${esc(p)}">${p}</button>`).join('')}</div>
+    </div>
+    <div class="field"><label>다음 달엔 이렇게 할게요</label><input class="input" id="f-action" placeholder="예: 배달은 주 1회만" value="${esc(e.action || '')}"></div>
+    <div class="sheet-actions">${e.id ? '<button class="btn danger" id="f-del">삭제</button>' : '<button class="btn" id="f-cancel">나중에</button>'}<button class="btn primary" id="f-save">기록하기</button></div>`,
+  root => {
+    let mood = e.mood || 2;
+    root.querySelectorAll('#f-mood button').forEach(b => b.onclick = () => { mood = +b.dataset.v; root.querySelectorAll('#f-mood button').forEach(x => x.classList.toggle('on', x === b)); });
+    const body = root.querySelector('#f-body');
+    root.querySelectorAll('[data-prompt]').forEach(b => b.onclick = () => { body.value = (body.value ? body.value.trimEnd() + '\n' : '') + '· ' + b.dataset.prompt; body.focus(); });
+    root.querySelector('#f-cancel')?.addEventListener('click', closeSheet);
+    root.querySelector('#f-del')?.addEventListener('click', () => { if (confirm('이 기록을 삭제할까요?')) { state.journal = state.journal.filter(j => j.id !== e.id); save(); closeSheet(); render(); } });
+    root.querySelector('#f-save').onclick = () => {
+      if (!body.value.trim()) { body.focus(); toast('내용을 적어주세요'); return; }
+      const entry = { id: e.id || uid(), kind: 'reflection', ym, date: e.date || todayStr(), mood, title: `${mLabel(ym)}의 반성`, body: body.value.trim(), action: root.querySelector('#f-action').value.trim() };
+      state.journal = state.journal.filter(j => j.id !== entry.id).concat(entry);
+      save(); closeSheet(); render(); toast('기록했어요. 다음 달은 더 잘할 거예요');
+    };
+  });
+}
+function openMemoSheet(existing) {
+  const e = existing || {};
+  openSheet(`
+    <h3>${e.id ? '메모 수정' : '새 메모'}</h3>
+    <p class="sheet-desc">소비 다짐, 아낀 것, 떠오른 생각을 가볍게.</p>
+    <div class="field"><label>날짜</label><input class="input" type="date" id="f-date" value="${e.date || todayStr()}"></div>
+    <div class="field"><label>기분</label><div class="moods" id="f-mood">${MOODS.map((m, k) => `<button type="button" data-v="${k + 1}" class="${(e.mood || 3) === k + 1 ? 'on' : ''}">${m}</button>`).join('')}</div></div>
+    <div class="field"><label>제목 (선택)</label><input class="input" id="f-title" value="${esc(e.title || '')}" placeholder="한 줄 요약"></div>
+    <div class="field"><label>내용</label><textarea class="textarea" id="f-body" placeholder="자유롭게 적어보세요">${esc(e.body || '')}</textarea></div>
+    <div class="sheet-actions">${e.id ? '<button class="btn danger" id="f-del">삭제</button>' : '<button class="btn" id="f-cancel">취소</button>'}<button class="btn primary" id="f-save">저장</button></div>`,
+  root => {
+    let mood = e.mood || 3;
+    root.querySelectorAll('#f-mood button').forEach(b => b.onclick = () => { mood = +b.dataset.v; root.querySelectorAll('#f-mood button').forEach(x => x.classList.toggle('on', x === b)); });
+    root.querySelector('#f-cancel')?.addEventListener('click', closeSheet);
+    root.querySelector('#f-del')?.addEventListener('click', () => { if (confirm('이 메모를 삭제할까요?')) { state.journal = state.journal.filter(j => j.id !== e.id); save(); closeSheet(); render(); } });
+    root.querySelector('#f-save').onclick = () => {
+      const body = root.querySelector('#f-body').value.trim();
+      if (!body) { toast('내용을 적어주세요'); return; }
+      const entry = { id: e.id || uid(), kind: 'memo', date: root.querySelector('#f-date').value || todayStr(), mood, title: root.querySelector('#f-title').value.trim(), body };
+      state.journal = state.journal.filter(j => j.id !== entry.id).concat(entry);
+      save(); closeSheet(); render(); toast('저장했어요');
+    };
+  });
+}
+
+/* ---- 목표 ---- */
+const EMOJIS = ['🎯', '✈️', '🏠', '🚗', '💍', '🛟', '🎓', '💻', '🎁', '🌱'];
+function openGoalSheet(existing) {
+  const g = existing || {};
+  openSheet(`
+    <h3>${g.id ? '목표 수정' : '새 목표'}</h3>
+    <p class="sheet-desc">월 저금과 별개로 모으는 큰 목표예요.</p>
+    <div class="field"><label>아이콘</label><div class="emojis" id="f-emoji">${EMOJIS.map(e => `<button type="button" class="${(g.emoji || '🎯') === e ? 'on' : ''}">${e}</button>`).join('')}</div></div>
+    <div class="field"><label>이름</label><input class="input" id="f-name" value="${esc(g.name || '')}" placeholder="예: 제주도 여행"></div>
+    <div class="field"><label>목표 금액</label><input class="input" id="f-amount" inputmode="numeric" value="${g.target ? g.target.toLocaleString('ko-KR') : ''}" placeholder="0"></div>
+    <div class="field"><label>목표 시점 (선택)</label><input class="input" type="month" id="f-deadline" value="${g.deadline || ''}"></div>
+    <div class="sheet-actions">${g.id ? '<button class="btn danger" id="f-del">삭제</button>' : '<button class="btn" id="f-cancel">취소</button>'}<button class="btn primary" id="f-save">저장</button></div>`,
+  root => {
+    let emoji = g.emoji || '🎯';
+    root.querySelectorAll('#f-emoji button').forEach(b => b.onclick = () => { emoji = b.textContent; root.querySelectorAll('#f-emoji button').forEach(x => x.classList.toggle('on', x === b)); });
+    moneyInput(root.querySelector('#f-amount'));
+    root.querySelector('#f-cancel')?.addEventListener('click', closeSheet);
+    root.querySelector('#f-del')?.addEventListener('click', () => { if (confirm(`'${g.name}' 목표를 삭제할까요?`)) { state.goals = state.goals.filter(x => x.id !== g.id); save(); closeSheet(); render(); } });
+    root.querySelector('#f-save').onclick = () => {
+      const name = root.querySelector('#f-name').value.trim(), target = parseNum(root.querySelector('#f-amount').value);
+      if (!name || !target) { toast('이름과 금액을 입력해 주세요'); return; }
+      const next = { id: g.id || uid(), name, emoji, target, deadline: root.querySelector('#f-deadline').value || '', deposits: g.deposits || [] };
+      state.goals = g.id ? state.goals.map(x => x.id === g.id ? next : x) : state.goals.concat(next);
+      save(); closeSheet(); render(); toast('목표를 저장했어요');
+    };
+  });
+}
+function openGoalDetail(id) {
+  const g = state.goals.find(x => x.id === id); if (!g) return;
+  const p = goalProjection(g);
+  const deps = [...g.deposits].sort((a, b) => b.date.localeCompare(a.date));
+  openSheet(`
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+      <div class="goal-emoji">${esc(g.emoji)}</div>
+      <div style="flex:1"><h3>${esc(g.name)}</h3><div class="card-sub">${g.deadline ? g.deadline.replace('-', '.') + '까지' : '기한 없음'}</div></div>
+      <button class="btn sm" id="g-edit">${icon('pen')}수정</button>
+    </div>
+    <div style="display:grid;grid-template-columns:110px 1fr;gap:16px;align-items:center">
+      <div class="ring-wrap" style="width:110px;height:110px">${ringSVG(p.pct, p.remain === 0 ? 'hit' : '')}<div class="ring-center"><div class="ring-pct" style="font-size:22px">${Math.round(p.pct * 100)}<small>%</small></div></div></div>
+      <div class="context-box" style="margin:0">
+        <div class="row"><span>모은 돈</span><b>${won(p.saved)}</b></div>
+        <div class="row"><span>남은 돈</span><b>${won(p.remain)}</b></div>
+        ${p.needPerMonth != null && p.remain ? `<div class="row"><span>월 필요액</span><b>${won(p.needPerMonth)}</b></div>` : ''}
+        ${p.eta ? `<div class="row"><span>현재 속도면</span><b>${ymLabel(p.eta)}</b></div>` : ''}
+      </div>
+    </div>
+    <div class="field" style="margin-top:18px"><label>납입하기</label>
+      <div class="input-row"><input class="input" id="d-amt" inputmode="numeric" placeholder="금액 (출금은 -)"><input class="input" type="date" id="d-date" value="${todayStr()}"></div>
+      ${quickAmounts(0, [50000, 100000, 300000, 1000000])}
+      <input class="input" id="d-memo" placeholder="메모 (선택)" style="margin-top:8px">
+      <button class="btn primary block" style="margin-top:10px" id="d-add">${icon('plus')}납입 기록</button>
+    </div>
+    <div class="card-sub" style="margin:8px 0 4px">납입 내역</div>
+    <div>${deps.length ? deps.map(d => `<div class="list-row"><div class="grow"><div>${esc(d.memo || '납입')}</div><div class="sub">${d.date.replace(/-/g, '.')}</div></div><div class="amt" style="color:${d.amount < 0 ? 'var(--miss)' : 'var(--text)'}">${d.amount > 0 ? '+' : ''}${won(d.amount)}</div><button class="icon-btn" style="width:32px;height:32px" data-del-dep="${d.id}" aria-label="삭제">${icon('x')}</button></div>`).join('') : '<div class="empty-state">아직 납입 기록이 없어요</div>'}</div>`,
+  root => {
+    animateRings(root);
+    const amt = root.querySelector('#d-amt'); moneyInput(amt); bindQuick(root, amt);
+    root.querySelector('#g-edit').onclick = () => openGoalSheet(g);
+    root.querySelector('#d-add').onclick = () => {
+      const v = parseNum(amt.value);
+      if (!v) { toast('금액을 입력해 주세요'); return; }
+      const before = goalSaved(g);
+      g.deposits.push({ id: uid(), date: root.querySelector('#d-date').value || todayStr(), amount: v, memo: root.querySelector('#d-memo').value.trim() });
+      save(); render(); openGoalDetail(id);
+      if (before < g.target && goalSaved(g) >= g.target) toast(`🎉 '${g.name}' 목표 달성!`); else toast('납입을 기록했어요');
+    };
+    root.querySelectorAll('[data-del-dep]').forEach(b => b.onclick = () => { g.deposits = g.deposits.filter(d => d.id !== b.dataset.delDep); save(); render(); openGoalDetail(id); });
+  });
+}
+
+function openFabMenu() {
+  openSheet(`
+    <h3>무엇을 기록할까요?</h3>
+    <p class="sheet-desc">${ymLabel(NOW_YM())}</p>
+    <div style="display:grid;gap:8px">
+      <button class="btn block" style="justify-content:flex-start;padding:16px" data-fab="month">${icon('coin')}이번 달 저금액 기록</button>
+      <button class="btn block" style="justify-content:flex-start;padding:16px" data-fab="goal">${icon('target')}목표에 납입</button>
+      <button class="btn block" style="justify-content:flex-start;padding:16px" data-fab="memo">${icon('pen')}메모 쓰기</button>
+      <button class="btn block" style="justify-content:flex-start;padding:16px" data-fab="reflect">${icon('feather')}반성 일기 쓰기</button>
+    </div>`, root => {
+    root.querySelectorAll('[data-fab]').forEach(b => b.onclick = () => {
+      const k = b.dataset.fab;
+      if (k === 'month') openMonthSheet();
+      if (k === 'memo') openMemoSheet();
+      if (k === 'reflect') { const ms = unreflectedMisses(); openReflectSheet(ms.length ? ms[ms.length - 1] : addMonths(NOW_YM(), -1)); }
+      if (k === 'goal') {
+        if (!state.goals.length) { openGoalSheet(); return; }
+        if (state.goals.length === 1) { openGoalDetail(state.goals[0].id); return; }
+        openSheet(`<h3>어느 목표에 납입할까요?</h3><div style="display:grid;gap:8px;margin-top:14px">${state.goals.map(g => `<button class="btn block" style="justify-content:flex-start;padding:14px" data-pick="${g.id}">${esc(g.emoji)} ${esc(g.name)}</button>`).join('')}</div>`,
+          r2 => r2.querySelectorAll('[data-pick]').forEach(x => x.onclick = () => openGoalDetail(x.dataset.pick)));
+      }
+    });
+  });
+}
+
+/* =====================================================================
+   가계부 연동 (읽기 전용)
+   - 가계부 Firestore 문서 couples_budgets/{코드} 를 get()으로 한 번 읽어
+     월별 수입/지출/카테고리 합계만 이 기기에 캐시한다. 쓰기는 절대 하지 않는다.
+   ===================================================================== */
+const GAGYEBU_FIREBASE = {
+  apiKey: 'AIzaSyA3_wB7tylakgPI7S6omyY6djmhumc8KK4',
+  authDomain: 'shugaeng-gagyebu.firebaseapp.com',
+  projectId: 'shugaeng-gagyebu',
+  storageBucket: 'shugaeng-gagyebu.firebasestorage.app',
+  messagingSenderId: '501414731892',
+  appId: '1:501414731892:web:bb243bda40f5785ff6f121',
+};
+function loadScript(src) {
+  return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('스크립트를 불러오지 못했어요')); document.head.appendChild(s); });
+}
+async function firestoreReadonly() {
+  if (!window.firebase?.firestore) {
+    await loadScript('https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js');
+    await loadScript('https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js');
+  }
+  const app = firebase.apps.find(a => a.name === 'gagyebu-readonly') || firebase.initializeApp(GAGYEBU_FIREBASE, 'gagyebu-readonly');
+  return app.firestore();
+}
+function summarizeTransactions(transactions) {
+  const monthly = {};
+  (transactions || []).forEach(t => {
+    if (!t || !t.date || !t.type) return;
+    const ym = String(t.date).slice(0, 7);
+    const amt = Number(t.amount) || 0;
+    const m = monthly[ym] || (monthly[ym] = { income: 0, expense: 0, cats: {} });
+    if (t.type === 'income') m.income += amt;
+    else if (t.type === 'expense') { m.expense += amt; const c = t.category || '기타'; m.cats[c] = (m.cats[c] || 0) + amt; }
+  });
+  return monthly;
+}
+async function syncGagyebu(code, silent) {
+  const btn = document.getElementById('link-btn');
+  if (!/^\d{6}$/.test(code)) { toast('6자리 숫자 코드를 입력해 주세요'); return; }
+  btn.disabled = true; btn.textContent = '연결 중…';
+  try {
+    const db = await firestoreReadonly();
+    const snap = await db.collection('couples_budgets').doc(code).get();
+    if (!snap.exists) throw new Error('해당 코드의 가계부를 찾을 수 없어요');
+    const data = snap.data();
+    linkCache = { source: 'cloud', fetchedAt: Date.now(), monthly: summarizeTransactions(data.transactions) };
+    state.settings.linkCode = code;
+    save(); saveLink(); render();
+    if (!silent) toast(`연동 완료 · ${Object.keys(linkCache.monthly).length}개월 데이터`);
+  } catch (e) {
+    console.warn(e);
+    if (!silent) toast(e.message || '연동에 실패했어요');
+  } finally { btn.disabled = false; btn.textContent = '연동'; }
+}
+
+/* =====================================================================
+   백업
+   ===================================================================== */
+function download(name, obj) {
+  const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+function readJSONFile(file) {
+  return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => { try { res(JSON.parse(r.result)); } catch (e) { rej(e); } }; r.onerror = rej; r.readAsText(file); });
+}
+
+let toastTimer;
+function toast(msg) {
+  const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+/* =====================================================================
+   이벤트 바인딩
+   ===================================================================== */
+document.querySelectorAll('[data-ic]').forEach(el => el.outerHTML = icon(el.dataset.ic));
+document.getElementById('fab').innerHTML = icon('plus');
+document.getElementById('add-goal-btn').innerHTML = icon('plus');
+document.querySelectorAll('#nav button').forEach(b => b.addEventListener('click', () => go(b.dataset.view)));
+document.getElementById('fab').addEventListener('click', openFabMenu);
+document.getElementById('hero-record-btn').addEventListener('click', () => openMonthSheet());
+document.getElementById('hero-target-btn').addEventListener('click', () => openMonthSheet());
+document.getElementById('add-goal-btn').addEventListener('click', () => openGoalSheet());
+document.getElementById('theme-btn').addEventListener('click', () => {
+  const order = ['auto', 'dark', 'light'];
+  const t = localStorage.getItem(THEME_KEY) || 'auto';
+  const next = order[(order.indexOf(t) + 1) % 3];
+  localStorage.setItem(THEME_KEY, next); renderTheme();
+  toast({ auto: '시스템 테마', dark: '다크 모드', light: '라이트 모드' }[next]);
+});
+
+document.addEventListener('click', e => {
+  const t = e.target;
+  const r = t.closest('[data-reflect]'); if (r) { openReflectSheet(r.dataset.reflect); return; }
+  const em = t.closest('[data-edit-month]'); if (em) { openMonthSheet(em.dataset.editMonth); return; }
+  const gd = t.closest('[data-goal]'); if (gd && !t.closest('.sheet')) { openGoalDetail(gd.dataset.goal); return; }
+  const en = t.closest('[data-entry]');
+  if (en && !t.closest('.sheet')) {
+    const j = state.journal.find(x => x.id === en.dataset.entry);
+    if (j) j.kind === 'reflection' ? openReflectSheet(j.ym, j) : openMemoSheet(j);
+    return;
+  }
+  if (t.closest('[data-action="add-goal"]')) { openGoalSheet(); return; }
+  const gt = t.closest('[data-goto]'); if (gt) go(gt.dataset.goto);
+});
+
+document.getElementById('range-seg').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  reportRange = +b.dataset.range;
+  document.querySelectorAll('#range-seg button').forEach(x => x.classList.toggle('on', x === b));
+  renderReport();
+});
+document.getElementById('journal-seg').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  journalKind = b.dataset.kind;
+  document.querySelectorAll('#journal-seg button').forEach(x => x.classList.toggle('on', x === b));
+  renderJournal();
+});
+
+moneyInput(document.getElementById('set-target'));
+document.getElementById('set-target-save').addEventListener('click', () => {
+  const v = parseNum(document.getElementById('set-target').value);
+  if (!v || v < 0) { toast('금액을 입력해 주세요'); return; }
+  state.settings.monthlyTarget = v; save(); render(); toast('기본 목표를 저장했어요');
+});
+document.getElementById('link-btn').addEventListener('click', () => syncGagyebu(document.getElementById('link-code').value.trim()));
+document.getElementById('link-refresh').addEventListener('click', () => {
+  if (state.settings.linkCode) syncGagyebu(state.settings.linkCode); else toast('먼저 동기화 코드로 연동해 주세요');
+});
+document.getElementById('link-mode').addEventListener('change', e => { state.settings.linkMode = e.target.value; save(); render(); });
+document.getElementById('link-off').addEventListener('click', () => {
+  if (!confirm('가계부 연동을 해제할까요? (가계부 데이터에는 영향 없어요)')) return;
+  linkCache = null; state.settings.linkCode = ''; saveLink(); save(); render(); toast('연동을 해제했어요');
+});
+document.getElementById('gagyebu-file').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try {
+    const d = await readJSONFile(f);
+    if (!Array.isArray(d.transactions)) throw new Error();
+    linkCache = { source: 'file', fetchedAt: Date.now(), monthly: summarizeTransactions(d.transactions) };
+    saveLink(); render(); toast(`가계부 백업에서 ${Object.keys(linkCache.monthly).length}개월을 불러왔어요`);
+  } catch (err) { toast('가계부 백업 파일이 아니에요'); }
+});
+document.getElementById('export-btn').addEventListener('click', () => download(`moa-backup-${todayStr()}.json`, { app: 'moa', version: 1, exportedAt: new Date().toISOString(), ...state }));
+document.getElementById('import-file').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try {
+    const d = await readJSONFile(f);
+    if (d.app !== 'moa') throw new Error();
+    if (!confirm('현재 기록을 백업 파일 내용으로 바꿀까요?')) return;
+    state = { settings: Object.assign({}, DEFAULT_STATE.settings, d.settings), months: d.months || {}, goals: d.goals || [], journal: d.journal || [] };
+    save(); render(); toast('백업을 불러왔어요');
+  } catch (err) { toast('이 앱의 백업 파일이 아니에요'); }
+});
+document.getElementById('reset-btn').addEventListener('click', () => {
+  if (!confirm('모든 기록을 삭제할까요? 되돌릴 수 없어요.')) return;
+  state = structuredClone(DEFAULT_STATE); linkCache = null; save(); saveLink(); render(); toast('초기화했어요');
+});
+
+let resizeT;
+window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(render, 150); });
+matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', renderTheme);
+
+renderTheme();
+go('home');
+
+// 연동되어 있으면 6시간마다 조용히 새로고침
+if (state.settings.linkCode && linkCache?.source === 'cloud' && Date.now() - linkCache.fetchedAt > 6 * 3600 * 1000) syncGagyebu(state.settings.linkCode, true);
+
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('service-worker.js').catch(() => {});
+</script>
+</body>
+</html>
