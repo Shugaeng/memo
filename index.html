@@ -610,7 +610,7 @@ function icon(name, extra = '') {
    가계부 연동 데이터는 월별 합계만 캐시(원본 거래내역은 저장하지 않음).
    ===================================================================== */
 // 배포할 때마다 올리고, service-worker.js의 CACHE_NAME도 같은 버전으로 맞춘다
-const APP_VERSION = '1.3.5';
+const APP_VERSION = '1.3.6';
 const KEY = 'moa_data_v1';
 const LINK_KEY = 'moa_gagyebu_cache_v1';
 const THEME_KEY = 'moa_theme';
@@ -1354,23 +1354,36 @@ function entryCard(j) {
     ${j.action ? `<div class="entry-action"><b>다음엔 이렇게</b>${esc(j.action)}</div>` : ''}
   </div>`;
 }
+let journalYear = new Date().getFullYear();
+// 반성 일기는 돌아본 달(ym), 메모는 쓴 날짜 기준으로 연도를 나눈다
+const journalYm = j => j.kind === 'reflection' && j.ym ? j.ym : j.date.slice(0, 7);
 function renderJournal() {
-  const list = [...state.journal].filter(j => journalKind === 'all' || j.kind === journalKind).sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
-  // 기분 흐름 (최근 12개월, 월별 평균)
-  const months = lastMonths(12);
-  const moodAvg = months.map(m => { const es = state.journal.filter(j => j.date.slice(0, 7) === m); return es.length ? es.reduce((a, j) => a + (j.mood || 3), 0) / es.length : null; });
+  const nowY = new Date().getFullYear();
+  if (journalYear > nowY) journalYear = nowY;
+  const firstY = Math.min(firstDataYear(), ...state.journal.map(j => Number(journalYm(j).slice(0, 4))).filter(y => y > 1900));
+  const list = [...state.journal].filter(j => (journalKind === 'all' || j.kind === journalKind) && journalYm(j).startsWith(journalYear + '-'))
+    .sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
+  // 기분 흐름 (선택 연도 1~12월, 월별 평균)
+  const months = yearMonthsOf(journalYear);
+  const moodAvg = months.map(m => { const es = state.journal.filter(j => journalYm(j) === m); return es.length ? es.reduce((a, j) => a + (j.mood || 3), 0) / es.length : null; });
   const mc = document.getElementById('mood-card');
   if (state.journal.length) {
     mc.style.display = '';
-    mc.innerHTML = `<div class="card-head"><h2 class="card-title">마음 날씨와 달성률</h2><span class="card-sub">최근 12개월</span></div>
+    mc.innerHTML = `<div class="card-head"><h2 class="card-title">마음 날씨와 달성률</h2>
+        <span style="display:flex;align-items:center;gap:6px">
+          <button class="year-nav" data-journal-year="-1" aria-label="이전 연도" ${journalYear <= firstY ? 'disabled' : ''}>${icon('left')}</button>
+          <b style="font-size:13px;min-width:52px;text-align:center">${journalYear}년</b>
+          <button class="year-nav" data-journal-year="1" aria-label="다음 연도" ${journalYear >= nowY ? 'disabled' : ''}>${icon('right')}</button>
+        </span></div>
       <div class="mood-strip">${months.map((m, i) => {
+        if (m > NOW_YM()) return `<div style="flex:1;min-width:0;text-align:center;opacity:.3"><div style="font-size:18px;height:26px">·</div><div style="height:4px;border-radius:2px;margin:4px 3px;border:1px dashed var(--line)"></div><div class="card-sub">${Number(m.slice(5))}</div></div>`;
         const st = monthStatus(m);
         const tip = tipRows(ymLabel(m), [['평균 기분', moodAvg[i] != null ? MOODS[Math.round(moodAvg[i]) - 1] : '-'], ['저금 상태', { hit: '✓ 달성', miss: '✕ 미달성', pending: '진행 중', empty: '기록 없음' }[st]]]);
         return `<div data-tip="${esc(tip)}" style="flex:1;min-width:0;text-align:center"><div style="font-size:18px;height:26px;${moodAvg[i] == null ? 'opacity:.25' : ''}">${moodAvg[i] != null ? MOODS[Math.round(moodAvg[i]) - 1] : '·'}</div><div style="height:4px;border-radius:2px;margin:4px 3px;background:${st === 'hit' ? 'var(--hit)' : st === 'miss' ? 'var(--miss)' : 'var(--surface-3)'}"></div><div class="card-sub">${Number(m.slice(5))}</div></div>`;
       }).join('')}</div>`;
   } else mc.style.display = 'none';
   document.getElementById('journal-list').innerHTML = list.length ? list.map(entryCard).join('') :
-    `<div class="card empty-state">${icon('feather')}<div>${journalKind === 'reflection' ? '목표를 놓친 달에 반성 일기를 써보세요' : '오늘의 소비, 다짐, 아무거나 적어보세요'}</div></div>`;
+    `<div class="card empty-state">${icon('feather')}<div>${state.journal.length ? `${journalYear}년에 쓴 ${journalKind === 'reflection' ? '반성 일기가' : journalKind === 'memo' ? '메모가' : '기록이'} 없어요` : journalKind === 'reflection' ? '목표를 놓친 달에 반성 일기를 써보세요' : '오늘의 소비, 다짐, 아무거나 적어보세요'}</div></div>`;
 }
 
 /* =====================================================================
@@ -2101,6 +2114,7 @@ document.addEventListener('click', e => {
   const t = e.target;
   const r = t.closest('[data-reflect]'); if (r) { openReflectSheet(r.dataset.reflect); return; }
   const em = t.closest('[data-edit-month]'); if (em) { openMonthSheet(em.dataset.editMonth); return; }
+  const jy = t.closest('[data-journal-year]'); if (jy) { journalYear += Number(jy.dataset.journalYear); renderJournal(); return; }
   const sy = t.closest('[data-stash-year]'); if (sy && !t.closest('.sheet')) { stashYear += Number(sy.dataset.stashYear); renderStash(); return; }
   const gd = t.closest('[data-goal]'); if (gd && !t.closest('.sheet')) { openGoalDetail(gd.dataset.goal); return; }
   const ac = t.closest('[data-acct]'); if (ac) { openAccountDetail(ac.dataset.acct); return; }
