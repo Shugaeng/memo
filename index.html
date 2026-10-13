@@ -610,7 +610,7 @@ function icon(name, extra = '') {
    가계부 연동 데이터는 월별 합계만 캐시(원본 거래내역은 저장하지 않음).
    ===================================================================== */
 // 배포할 때마다 올리고, service-worker.js의 CACHE_NAME도 같은 버전으로 맞춘다
-const APP_VERSION = '1.3.4';
+const APP_VERSION = '1.3.5';
 const KEY = 'moa_data_v1';
 const LINK_KEY = 'moa_gagyebu_cache_v1';
 const THEME_KEY = 'moa_theme';
@@ -757,12 +757,28 @@ function acctBalance(a, untilDate = '9999-12-31') {
 }
 const acctStart = a => (a.txs || []).reduce((m, t) => !m || t.date < m ? t.date : m, null);
 function balanceSeries(accs, months) {
-  // 월말 잔액 (이번 달은 오늘 기준). 아직 등록 전인 계좌는 빼고, 등록된 계좌가 하나도 없는 달은 null
+  // 월말 잔액 (이번 달은 오늘 기준). 아직 등록 전인 계좌는 빼고, 등록된 계좌가 하나도 없는 달·미래 달은 null
   return months.map(m => {
+    if (m > NOW_YM()) return null;
     const until = m === NOW_YM() ? '9999-12-31' : monthEnd(m);
     const live = accs.filter(a => { const st = acctStart(a); return st && st <= until; });
     return live.length ? live.reduce((s, a) => s + acctBalance(a, until), 0) : null;
   });
+}
+// 모으기 탭 그래프(전체 잔액·계좌별 잔액·목표)가 함께 쓰는 연도
+let stashYear = new Date().getFullYear();
+const yearMonthsOf = y => Array.from({ length: 12 }, (_, k) => `${y}-${pad(k + 1)}`);
+function yearLabels(months) { const l = months.map(m => String(Number(m.slice(5)))); l.full = months.map(ymLabel); return l; }
+function chartYearHead(title) {
+  // 그래프 제목 + ‹ 연도 › (모으기 탭 공용)
+  const nowY = new Date().getFullYear();
+  return `<div style="display:flex;align-items:center;justify-content:space-between;margin:18px 0 6px">
+    <span class="card-sub">${title}</span>
+    <span style="display:flex;align-items:center;gap:6px">
+      <button class="year-nav" data-stash-year="-1" aria-label="이전 연도" ${stashYear <= firstDataYear() ? 'disabled' : ''}>${icon('left')}</button>
+      <b style="font-size:13px;min-width:52px;text-align:center">${stashYear}년</b>
+      <button class="year-nav" data-stash-year="1" aria-label="다음 연도" ${stashYear >= nowY ? 'disabled' : ''}>${icon('right')}</button>
+    </span></div>`;
 }
 const monthEnd = ym => `${ym}-${pad(daysInMonth(ym))}`;
 const totalBalance = (until) => state.accounts.reduce((s, a) => s + acctBalance(a, until), 0);
@@ -1281,15 +1297,14 @@ function renderAccounts() {
     list.innerHTML = '';
     return;
   }
-  const months = lastMonths(12);
-  const labels = months.map(m => axisMonth(m, months.length)); labels.full = months.map(ymLabel);
+  const months = yearMonthsOf(stashYear), labels = yearLabels(months);
   ov.innerHTML = `<div class="card-head"><h2 class="card-title">전체 잔액</h2><span class="card-sub">${state.accounts.length}개 계좌</span></div>
     ${accountsSummaryHTML()}
-    <div class="card-sub" style="margin:18px 0 6px">전체 잔액 추이 (월말 기준)</div>
+    ${chartYearHead('전체 잔액 추이 (월말 기준)')}
     <div class="chart" id="acct-total-line"></div>`;
   const totals = balanceSeries(state.accounts, months);
   renderLine(document.getElementById('acct-total-line'), { labels, title: '전체 잔액 추이', series: [{ name: '전체 잔액', values: totals, color: 'var(--accent)', area: true }] });
-  if (totals.filter(v => v != null).length < 2) document.getElementById('acct-total-line').insertAdjacentHTML('beforeend', '<div class="hint" style="text-align:center">등록한 달부터 기록돼요. 다음 달부터 추이가 이어져요.</div>');
+  if (totals.filter(v => v != null).length < 2 && stashYear === new Date().getFullYear()) document.getElementById('acct-total-line').insertAdjacentHTML('beforeend', '<div class="hint" style="text-align:center">등록한 달부터 기록돼요. 다음 달부터 추이가 이어져요.</div>');
   list.innerHTML = state.accounts.map(acctCard).join('');
 }
 
@@ -1302,20 +1317,20 @@ function renderGoals() {
     return;
   }
   const tot = goals.reduce((a, g) => a + g.target, 0), sv = goals.reduce((a, g) => a + Math.min(g.target, goalSaved(g)), 0);
-  // 누적 납입 추이 (최근 12개월, 목표별 합산)
-  const months = lastMonths(12);
+  // 목표에 모인 돈 추이 (선택 연도 1~12월, 목표별 합산)
+  const months = yearMonthsOf(stashYear);
   // 계좌 연결 목표는 계좌 등록 전 달, 납입 목표는 첫 납입 전 달을 '기록 없음'으로 처리
   const perGoal = goals.map(g => goalAccounts(g).length ? balanceSeries(goalAccounts(g), months)
-    : months.map(m => g.deposits.some(d => d.date <= monthEnd(m)) ? goalSaved(g, monthEnd(m)) : null));
+    : months.map(m => m <= NOW_YM() && g.deposits.some(d => d.date <= monthEnd(m)) ? goalSaved(g, monthEnd(m)) : null));
   const cum = months.map((m, i) => perGoal.every(v => v[i] == null) ? null : perGoal.reduce((a, v) => a + (v[i] || 0), 0));
   ov.innerHTML = `<div class="card-head"><h2 class="card-title">전체 목표 진행</h2><span class="card-sub">${goals.length}개 목표</span></div>
     <div style="display:flex;align-items:baseline;gap:8px"><div class="hero-amount">${man(sv)}<span class="unit">원</span></div><div class="hero-target">/ ${man(tot)}원 · ${tot ? Math.round(sv / tot * 100) : 0}%</div></div>
     <div class="progress"><div style="width:${tot ? Math.min(100, sv / tot * 100) : 0}%"></div></div>
-    <div class="card-sub" style="margin:14px 0 6px">목표에 모인 돈 (월말 기준, 최근 12개월)</div>
+    ${chartYearHead('목표에 모인 돈 (월말 기준)')}
     <div class="chart" id="goals-cum"></div>`;
-  const labels = months.map(m => axisMonth(m, months.length)); labels.full = months.map(ymLabel);
+  const labels = yearLabels(months);
   renderLine(document.getElementById('goals-cum'), { labels, title: '목표 저금 누적', series: [{ name: '모인 돈', values: cum, color: 'var(--accent)', area: true }] });
-  if (cum.filter(v => v != null).length < 2) document.getElementById('goals-cum').insertAdjacentHTML('beforeend', '<div class="hint" style="text-align:center">기록이 시작된 달부터 보여요. 다음 달부터 추이가 이어져요.</div>');
+  if (cum.filter(v => v != null).length < 2 && stashYear === new Date().getFullYear()) document.getElementById('goals-cum').insertAdjacentHTML('beforeend', '<div class="hint" style="text-align:center">기록이 시작된 달부터 보여요. 다음 달부터 추이가 이어져요.</div>');
   document.getElementById('goals-list').innerHTML = goals.map(goalCard).join('');
 }
 
@@ -1603,8 +1618,7 @@ function openAccountDetail(id, txType = 'in') {
   const bal = acctBalance(a), f = acctFlow(a, NOW_YM(), true);
   const others = state.accounts.filter(x => x.id !== id);
   const txs = sortedTxs(a).reverse();
-  const months = lastMonths(12);
-  const labels = months.map(m => axisMonth(m, months.length)); labels.full = months.map(ymLabel);
+  const months = yearMonthsOf(stashYear), labels = yearLabels(months);
   let dday = '';
   if (a.maturity) { const [y, m] = a.maturity.split('-').map(Number); const n = new Date(); const left = (y - n.getFullYear()) * 12 + (m - 1 - n.getMonth()); dday = left > 0 ? `${left}개월 남음` : left === 0 ? '이번 달 만기' : '만기 지남'; }
   const linkedGoals = state.goals.filter(g => (g.accountIds || []).includes(id));
@@ -1622,7 +1636,7 @@ function openAccountDetail(id, txType = 'in') {
       ${linkedGoals.length ? `<div class="row"><span>연결된 목표</span><b>${linkedGoals.map(g => esc(g.emoji + ' ' + g.name)).join(', ')}</b></div>` : ''}
       ${a.memo ? `<div class="row"><span>메모</span><b>${esc(a.memo)}</b></div>` : ''}
     </div>
-    <div class="card-sub" style="margin:4px 0 6px">잔액 추이 (월말 기준)</div>
+    ${chartYearHead('잔액 추이 (월말 기준)').replace('margin:18px 0 6px', 'margin:4px 0 6px')}
     <div class="chart" id="a-line"></div>
     <div class="field" style="margin-top:18px"><label>기록하기</label>
       <div class="seg" id="t-type" style="margin-bottom:10px">${['in', 'out', 'move', 'set'].map(t => `<button type="button" data-t="${t}" class="${txType === t ? 'on' : ''}">${{ in: '입금', out: '출금', move: '이체', set: '잔액 수정' }[t]}</button>`).join('')}</div>
@@ -1643,6 +1657,8 @@ function openAccountDetail(id, txType = 'in') {
     }).join('') : '<div class="empty-state">아직 거래 기록이 없어요</div>'}</div>`,
   root => {
     renderLine(root.querySelector('#a-line'), { labels, title: `${a.name} 잔액 추이`, series: [{ name: '잔액', values: balanceSeries([a], months), color: acctColor(a), area: true }] });
+    // 시트를 다시 그리면 눌린 버튼이 DOM에서 빠져 문서 클릭 핸들러가 '시트 밖'으로 오인하므로 전파를 막는다
+    root.querySelectorAll('[data-stash-year]').forEach(b => b.onclick = e => { e.stopPropagation(); stashYear += Number(b.dataset.stashYear); render(); openAccountDetail(id, type); });
     root.querySelector('#a-edit').onclick = () => openAccountSheet(a);
     let type = txType;
     const amt = root.querySelector('#t-amt'), hint = root.querySelector('#t-hint');
@@ -2085,6 +2101,7 @@ document.addEventListener('click', e => {
   const t = e.target;
   const r = t.closest('[data-reflect]'); if (r) { openReflectSheet(r.dataset.reflect); return; }
   const em = t.closest('[data-edit-month]'); if (em) { openMonthSheet(em.dataset.editMonth); return; }
+  const sy = t.closest('[data-stash-year]'); if (sy && !t.closest('.sheet')) { stashYear += Number(sy.dataset.stashYear); renderStash(); return; }
   const gd = t.closest('[data-goal]'); if (gd && !t.closest('.sheet')) { openGoalDetail(gd.dataset.goal); return; }
   const ac = t.closest('[data-acct]'); if (ac) { openAccountDetail(ac.dataset.acct); return; }
   const gp = t.closest('[data-goto-pane]'); if (gp) { stashPane = gp.dataset.gotoPane; go('goals'); return; }
