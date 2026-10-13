@@ -649,7 +649,7 @@ function icon(name, extra = '') {
    가계부 연동 데이터는 월별 합계만 캐시(원본 거래내역은 저장하지 않음).
    ===================================================================== */
 // 배포할 때마다 올리고, service-worker.js의 CACHE_NAME도 같은 버전으로 맞춘다
-const APP_VERSION = '1.4.0';
+const APP_VERSION = '1.4.1';
 const KEY = 'moa_data_v1';
 const LINK_KEY = 'moa_gagyebu_cache_v1';
 const THEME_KEY = 'moa_theme';
@@ -1383,8 +1383,8 @@ function entryCard(j) {
   const ctx = isRef && j.ym ? monthInfo(j.ym) : null;
   return `<div class="card entry" data-entry="${j.id}">
     <div class="entry-top">
-      <span class="entry-mood">${MOODS[(j.mood || 3) - 1]}</span>
-      <span class="chip ${isRef ? 'miss' : ''}">${isRef ? `${mLabel(j.ym)} 반성` : '메모'}</span>
+      ${isRef ? `<span class="entry-mood">${MOODS[(j.mood || 3) - 1]}</span>` : ''}
+      <span class="chip ${isRef ? (ctx && ctx.status === 'hit' ? 'hit' : 'miss') : ''}">${isRef ? `${j.ym.slice(0, 4) !== String(new Date().getFullYear()) ? j.ym.slice(2, 4) + '년 ' : ''}${mLabel(j.ym)} ${ctx && ctx.status === 'hit' ? '돌아보기' : '반성'}` : '메모'}</span>
       ${ctx && ctx.saved != null ? `<span class="card-sub">${Math.round((ctx.rate || 0) * 100)}% 달성</span>` : ''}
       <span class="entry-date">${j.date.replace(/-/g, '.')}</span>
     </div>
@@ -1404,11 +1404,11 @@ function renderJournal() {
     .sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
   // 기분 흐름 (선택 연도 1~12월, 월별 평균)
   const months = yearMonthsOf(journalYear);
-  const moodAvg = months.map(m => { const es = state.journal.filter(j => journalYm(j) === m); return es.length ? es.reduce((a, j) => a + (j.mood || 3), 0) / es.length : null; });
+  const moodAvg = months.map(m => { const es = state.journal.filter(j => j.kind === 'reflection' && journalYm(j) === m); return es.length ? es.reduce((a, j) => a + (j.mood || 3), 0) / es.length : null; });
   const mc = document.getElementById('mood-card');
-  if (state.journal.length) {
+  if (state.journal.some(j => j.kind === 'reflection')) {
     mc.style.display = '';
-    mc.innerHTML = `<div class="card-head"><h2 class="card-title">마음 날씨와 달성률</h2>
+    mc.innerHTML = `<div class="card-head"><h2 class="card-title">돌아본 마음과 달성률</h2>
         <span style="display:flex;align-items:center;gap:6px">
           <button class="year-nav" data-journal-year="-1" aria-label="이전 연도" ${journalYear <= firstY ? 'disabled' : ''}>${icon('left')}</button>
           <b style="font-size:13px;min-width:52px;text-align:center">${journalYear}년</b>
@@ -1633,11 +1633,13 @@ function openMonthSheet(ym = NOW_YM()) {
     <div class="field"><label>이 달의 목표 (비워두면 기본 ${won(state.settings.monthlyTarget)})</label>
       <input class="input" id="f-target" inputmode="numeric" placeholder="${state.settings.monthlyTarget.toLocaleString('ko-KR')}" value="${rec.target != null ? rec.target.toLocaleString('ko-KR') : ''}">
     </div>
-    <div class="sheet-actions">${state.months[ym] ? '<button class="btn danger" id="f-del">삭제</button>' : '<button class="btn" id="f-cancel">취소</button>'}<button class="btn primary" id="f-save">저장</button></div>`,
+    <div class="sheet-actions">${state.months[ym] ? '<button class="btn danger" id="f-del">삭제</button>' : '<button class="btn" id="f-cancel">취소</button>'}<button class="btn primary" id="f-save">저장</button></div>
+    ${ym <= NOW_YM() ? `<button class="btn ghost block" style="margin-top:8px" id="f-reflect">${icon('feather')}${reflectionFor(ym) ? '이 달 돌아보기 일기 보기' : '이 달 돌아보기 (일기 쓰기)'}</button>` : ''}`,
   root => {
     const sv = root.querySelector('#f-saved'), tg = root.querySelector('#f-target'), ymEl = root.querySelector('#f-ym');
     moneyInput(sv); moneyInput(tg); bindQuick(root, sv);
     ymEl.addEventListener('change', () => { if (ymEl.value) openMonthSheet(ymEl.value); });
+    root.querySelector('#f-reflect')?.addEventListener('click', () => openReflectSheet(ymEl.value || ym));
     root.querySelector('#f-cancel')?.addEventListener('click', closeSheet);
     root.querySelector('#f-del')?.addEventListener('click', () => {
       // 직접 입력한 저금액·목표를 지우면 자동 계산값(계좌/가계부)과 기본 목표로 돌아간다
@@ -1667,40 +1669,72 @@ function openMonthSheet(ym = NOW_YM()) {
 }
 
 /* ---- 반성 일기 / 메모 ---- */
-function openReflectSheet(ym, existing) {
-  const i = monthInfo(ym);
-  const l = linkedMonth(ym);
+const REFLECT_PROMPTS = {
+  miss: ['예상 못한 지출이 있었어요', '충동구매를 했어요', '외식·배달이 많았어요', '목표가 너무 높았어요', '수입이 줄었어요'],
+  hit: ['지출을 미리 계획했어요', '자동이체를 해뒀어요', '외식·배달을 줄였어요', '충동구매를 참았어요', '부수입이 있었어요'],
+};
+function reflectContextHTML(ym) {
+  // 고른 달의 목표·저금·달성 여부 (달성한 달은 '더 모은 금액', 그 외엔 '부족한 금액')
+  const i = monthInfo(ym), l = linkedMonth(ym);
   const topCats = l ? Object.entries(l.cats || {}).sort((a, b) => b[1] - a[1]).slice(0, 3) : [];
-  const e = existing || reflectionFor(ym) || {};
-  const PROMPTS = ['예상 못한 지출이 있었어요', '충동구매를 했어요', '외식·배달이 많았어요', '목표가 너무 높았어요', '수입이 줄었어요'];
-  openSheet(`
-    <h3>${ymLabel(ym)} 돌아보기</h3>
-    <p class="sheet-desc">자책보다는 다음 달을 위한 기록이에요.</p>
-    <div class="context-box">
+  const chip = { hit: `<span class="chip hit">${icon('check')}달성</span>`, miss: `<span class="chip miss">${icon('x')}미달성</span>`, pending: `<span class="chip pending">${icon('clock')}진행 중</span>`, empty: '<span class="chip">기록 없음</span>' }[i.status];
+  const diff = (i.saved || 0) - i.target;
+  return `<div class="row" style="align-items:center"><span>${ymLabel(ym)}</span>${chip}</div>
       <div class="row"><span>목표</span><b>${won(i.target)}</b></div>
       <div class="row"><span>실제 저금</span><b>${won(i.saved)}</b></div>
-      <div class="row"><span>부족한 금액</span><b style="color:var(--miss)">${won(Math.max(0, i.target - (i.saved || 0)))}</b></div>
-      ${topCats.length ? `<div class="row" style="margin-top:6px;padding-top:8px;border-top:1px solid var(--line)"><span>지출 Top</span><b>${topCats.map(([c, v]) => `${esc(c)} ${man(v)}`).join(' · ')}</b></div>` : ''}
+      ${i.saved != null ? (diff >= 0 ? `<div class="row"><span>목표보다 더 모은 금액</span><b style="color:var(--hit)">${won(diff)}</b></div>` : `<div class="row"><span>부족한 금액</span><b style="color:var(--miss)">${won(-diff)}</b></div>`) : ''}
+      ${topCats.length ? `<div class="row" style="margin-top:6px;padding-top:8px;border-top:1px solid var(--line)"><span>지출 Top</span><b>${topCats.map(([c, v]) => `${esc(c)} ${man(v)}`).join(' · ')}</b></div>` : ''}`;
+}
+function openReflectSheet(ym, existing, draft) {
+  const e = existing || reflectionFor(ym) || {};
+  const d = draft || {};
+  const isHit = () => monthStatus(ym) === 'hit';
+  openSheet(`
+    <h3>돌아보기</h3>
+    <p class="sheet-desc" id="f-rdesc">${isHit() ? '잘된 점도 남겨두면 다음 달에 도움이 돼요.' : '자책보다는 다음 달을 위한 기록이에요.'}</p>
+    <div class="field"><label>어느 달을 돌아볼까요?</label><input class="input" type="month" id="f-rym" value="${ym}" max="${NOW_YM()}"></div>
+    <div class="context-box" id="f-rctx">${reflectContextHTML(ym)}</div>
+    <div class="field"><label>그때 기분</label><div class="moods" id="f-mood">${MOODS.map((m, k) => `<button type="button" data-v="${k + 1}" class="${(d.mood || e.mood || (isHit() ? 4 : 2)) === k + 1 ? 'on' : ''}">${m}</button>`).join('')}</div></div>
+    <div class="field"><label id="f-rq">${isHit() ? '무엇이 잘됐나요?' : '무엇 때문이었나요?'}</label>
+      <textarea class="textarea" id="f-body" placeholder="솔직하게 적어보세요">${esc(d.body ?? e.body ?? '')}</textarea>
+      <div class="quick" id="f-prompts"></div>
     </div>
-    <div class="field"><label>그때 기분</label><div class="moods" id="f-mood">${MOODS.map((m, k) => `<button type="button" data-v="${k + 1}" class="${(e.mood || 2) === k + 1 ? 'on' : ''}">${m}</button>`).join('')}</div></div>
-    <div class="field"><label>무엇 때문이었나요?</label>
-      <textarea class="textarea" id="f-body" placeholder="솔직하게 적어보세요">${esc(e.body || '')}</textarea>
-      <div class="quick">${PROMPTS.map(p => `<button type="button" data-prompt="${esc(p)}">${p}</button>`).join('')}</div>
-    </div>
-    <div class="field"><label>다음 달엔 이렇게 할게요</label><input class="input" id="f-action" placeholder="예: 배달은 주 1회만" value="${esc(e.action || '')}"></div>
+    <div class="field"><label>다음 달엔 이렇게 할게요</label><input class="input" id="f-action" placeholder="예: 배달은 주 1회만" value="${esc(d.action ?? e.action ?? '')}"></div>
     <div class="sheet-actions">${e.id ? '<button class="btn danger" id="f-del">삭제</button>' : '<button class="btn" id="f-cancel">나중에</button>'}<button class="btn primary" id="f-save">기록하기</button></div>`,
   root => {
-    let mood = e.mood || 2;
+    let mood = d.mood || e.mood || (isHit() ? 4 : 2);
     root.querySelectorAll('#f-mood button').forEach(b => b.onclick = () => { mood = +b.dataset.v; root.querySelectorAll('#f-mood button').forEach(x => x.classList.toggle('on', x === b)); });
     const body = root.querySelector('#f-body');
-    root.querySelectorAll('[data-prompt]').forEach(b => b.onclick = () => { body.value = (body.value ? body.value.trimEnd() + '\n' : '') + '· ' + b.dataset.prompt; body.focus(); });
+    const drawPrompts = () => {
+      root.querySelector('#f-prompts').innerHTML = REFLECT_PROMPTS[isHit() ? 'hit' : 'miss'].map(p => `<button type="button" data-prompt="${esc(p)}">${p}</button>`).join('');
+      root.querySelectorAll('[data-prompt]').forEach(b => b.onclick = () => { body.value = (body.value ? body.value.trimEnd() + '\n' : '') + '· ' + b.dataset.prompt; body.focus(); });
+    };
+    drawPrompts();
+    // 달을 바꾸면: 그 달에 이미 쓴 일기가 있으면 그걸 열고, 없으면 쓰던 내용을 유지한 채 맥락만 바꾼다
+    const rym = root.querySelector('#f-rym');
+    rym.addEventListener('change', () => {
+      const next = rym.value;
+      if (!next || next > NOW_YM()) { rym.value = ym; toast('이번 달까지만 고를 수 있어요'); return; }
+      const other = reflectionFor(next);
+      if (other && other.id !== e.id) {
+        if (confirm(`${ymLabel(next)}에 이미 쓴 일기가 있어요. 그 일기를 열까요?`)) openReflectSheet(next, other);
+        else rym.value = ym;
+        return;
+      }
+      if (!e.id) { openReflectSheet(next, null, { mood, body: body.value, action: root.querySelector('#f-action').value }); return; }
+      ym = next;   // 기존 일기의 달을 옮기는 경우
+      root.querySelector('#f-rctx').innerHTML = reflectContextHTML(ym);
+      root.querySelector('#f-rq').textContent = isHit() ? '무엇이 잘됐나요?' : '무엇 때문이었나요?';
+      root.querySelector('#f-rdesc').textContent = isHit() ? '잘된 점도 남겨두면 다음 달에 도움이 돼요.' : '자책보다는 다음 달을 위한 기록이에요.';
+      drawPrompts();
+    });
     root.querySelector('#f-cancel')?.addEventListener('click', closeSheet);
     root.querySelector('#f-del')?.addEventListener('click', () => { if (confirm('이 기록을 삭제할까요?')) { state.journal = state.journal.filter(j => j.id !== e.id); save(); closeSheet(); render(); } });
     root.querySelector('#f-save').onclick = () => {
       if (!body.value.trim()) { body.focus(); toast('내용을 적어주세요'); return; }
-      const entry = { id: e.id || uid(), kind: 'reflection', ym, date: e.date || todayStr(), mood, title: `${mLabel(ym)}의 반성`, body: body.value.trim(), action: root.querySelector('#f-action').value.trim() };
+      const entry = { id: e.id || uid(), kind: 'reflection', ym, date: e.date || todayStr(), mood, title: `${mLabel(ym)}의 ${isHit() ? '돌아보기' : '반성'}`, body: body.value.trim(), action: root.querySelector('#f-action').value.trim() };
       state.journal = state.journal.filter(j => j.id !== entry.id).concat(entry);
-      save(); closeSheet(); render(); toast('기록했어요. 다음 달은 더 잘할 거예요');
+      save(); closeSheet(); render(); toast(isHit() ? '기록했어요. 이 흐름 그대로!' : '기록했어요. 다음 달은 더 잘할 거예요');
     };
   });
 }
@@ -1710,19 +1744,17 @@ function openMemoSheet(existing) {
     <h3>${e.id ? '메모 수정' : '새 메모'}</h3>
     <p class="sheet-desc">소비 다짐, 아낀 것, 떠오른 생각을 가볍게.</p>
     <div class="field"><label>날짜</label><input class="input" type="date" id="f-date" value="${e.date || todayStr()}"></div>
-    <div class="field"><label>기분</label><div class="moods" id="f-mood">${MOODS.map((m, k) => `<button type="button" data-v="${k + 1}" class="${(e.mood || 3) === k + 1 ? 'on' : ''}">${m}</button>`).join('')}</div></div>
     <div class="field"><label>제목 (선택)</label><input class="input" id="f-title" value="${esc(e.title || '')}" placeholder="한 줄 요약"></div>
     <div class="field"><label>내용</label><textarea class="textarea" id="f-body" placeholder="자유롭게 적어보세요">${esc(e.body || '')}</textarea></div>
     <div class="sheet-actions">${e.id ? '<button class="btn danger" id="f-del">삭제</button>' : '<button class="btn" id="f-cancel">취소</button>'}<button class="btn primary" id="f-save">저장</button></div>`,
   root => {
-    let mood = e.mood || 3;
-    root.querySelectorAll('#f-mood button').forEach(b => b.onclick = () => { mood = +b.dataset.v; root.querySelectorAll('#f-mood button').forEach(x => x.classList.toggle('on', x === b)); });
     root.querySelector('#f-cancel')?.addEventListener('click', closeSheet);
     root.querySelector('#f-del')?.addEventListener('click', () => { if (confirm('이 메모를 삭제할까요?')) { state.journal = state.journal.filter(j => j.id !== e.id); save(); closeSheet(); render(); } });
     root.querySelector('#f-save').onclick = () => {
       const body = root.querySelector('#f-body').value.trim();
       if (!body) { toast('내용을 적어주세요'); return; }
-      const entry = { id: e.id || uid(), kind: 'memo', date: root.querySelector('#f-date').value || todayStr(), mood, title: root.querySelector('#f-title').value.trim(), body };
+      // 메모는 기분을 받지 않음. 예전 메모에 저장된 기분 값은 지우지 않고 그대로 둔다
+      const entry = Object.assign({}, e, { id: e.id || uid(), kind: 'memo', date: root.querySelector('#f-date').value || todayStr(), title: root.querySelector('#f-title').value.trim(), body });
       state.journal = state.journal.filter(j => j.id !== entry.id).concat(entry);
       save(); closeSheet(); render(); toast('저장했어요');
     };

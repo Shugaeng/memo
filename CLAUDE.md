@@ -30,7 +30,7 @@
   - `txs[]`: `{ id, ts, date, type: 'in'|'out'|'set', amount, memo, transferId?, peer?, carry? }`
 - `goals[]`: `{ id, name, emoji, target, deadline, deposits[], accountIds[], manual }`
   - 기본은 전체 계좌 잔액(`goalIsAll`), `accountIds`로 특정 계좌, `manual`이면 직접 납입
-- `journal[]`: 반성 일기(`kind: 'reflection'`, `ym`)와 메모(`kind: 'memo'`)
+- `journal[]`: 반성 일기(`kind: 'reflection'`, `ym`, `mood`) — 이번 달까지 어느 달이든, 달마다 1개. 메모(`kind: 'memo'`)는 기분 없음(예전 값은 보존만)
 
 ## 앱 잠금
 
