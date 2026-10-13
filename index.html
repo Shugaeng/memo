@@ -649,7 +649,7 @@ function icon(name, extra = '') {
    가계부 연동 데이터는 월별 합계만 캐시(원본 거래내역은 저장하지 않음).
    ===================================================================== */
 // 배포할 때마다 올리고, service-worker.js의 CACHE_NAME도 같은 버전으로 맞춘다
-const APP_VERSION = '1.4.1';
+const APP_VERSION = '1.4.2';
 const KEY = 'moa_data_v1';
 const LINK_KEY = 'moa_gagyebu_cache_v1';
 const THEME_KEY = 'moa_theme';
@@ -743,6 +743,8 @@ function monthTarget(ym) {
 }
 function monthSaved(ym) {
   // 반환: { value, source: 'manual' | 'acct' | 'link' | null }
+  // 아직 오지 않은 달은 '기록 없음' (계좌 기준이면 0원으로 잡혀 미달성으로 세지는 것 방지)
+  if (ym > NOW_YM()) return { value: null, source: null };
   const rec = state.months[ym];
   if (rec && rec.saved != null) return { value: rec.saved, source: 'manual' };
   // '가계부' 방식인데 가계부 연동이 없으면 계좌 기준으로 계산
