@@ -32,6 +32,12 @@
   - 기본은 전체 계좌 잔액(`goalIsAll`), `accountIds`로 특정 계좌, `manual`이면 직접 납입
 - `journal[]`: 반성 일기(`kind: 'reflection'`, `ym`)와 메모(`kind: 'memo'`)
 
+## 앱 잠금
+
+- 4자리 PIN, 앱을 열 때와 다른 앱에서 돌아올 때(`visibilitychange`)마다 묻는다
+- 기기별 저장(`moa_pin_hash`, `moa_pin_salt`), 클라우드로 올리지 않는다. 화면 가리개 용도이며 데이터 암호화는 아님
+- 비밀번호를 잊으면 동기화 코드로 해제, 동기화를 안 쓰면 기기 기록 초기화만 가능
+
 ## 핵심 계산 규칙
 
 - **월 저금액(계좌 기준)** = 그달 계좌 기록들이 만든 잔액 변화의 합 (`acctGrowth`, `accountsSaved`)
