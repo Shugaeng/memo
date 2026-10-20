@@ -649,7 +649,7 @@ function icon(name, extra = '') {
    가계부 연동 데이터는 월별 합계만 캐시(원본 거래내역은 저장하지 않음).
    ===================================================================== */
 // 배포할 때마다 올리고, service-worker.js의 CACHE_NAME도 같은 버전으로 맞춘다
-const APP_VERSION = '1.4.2';
+const APP_VERSION = '1.4.3';
 const KEY = 'moa_data_v1';
 const LINK_KEY = 'moa_gagyebu_cache_v1';
 const THEME_KEY = 'moa_theme';
@@ -725,8 +725,13 @@ function man(n, digits = 0) {
 const parseNum = s => { const n = Number(String(s).replace(/[^\d.-]/g, '')); return isNaN(n) ? null : n; };
 // 받침에 맞는 '로/으로' (ㄹ 받침·받침 없음 → 로)
 function ro(word) {
-  const c = String(word).trim().slice(-1).charCodeAt(0);
-  if (c < 0xAC00 || c > 0xD7A3) return word + '(으)로';
+  const last = String(word).trim().slice(-1);
+  const c = last.charCodeAt(0);
+  if (c < 0xAC00 || c > 0xD7A3) {
+    // 영문·숫자는 읽는 소리 기준: M(엠)·N(엔)·0(영)·3(삼)·6(육)은 받침 → '으로', 나머지는 '로'
+    if (/[a-z0-9]/i.test(last)) return word + (/[mn036]/i.test(last) ? '으로' : '로');
+    return word + '(으)로';
+  }
   const jong = (c - 0xAC00) % 28;
   return word + (jong === 0 || jong === 8 ? '로' : '으로');
 }
@@ -1836,7 +1841,7 @@ function openAccountDetail(id, txType = 'in') {
     </div>
     ${chartYearHead('잔액 추이 (월말 기준)').replace('margin:18px 0 6px', 'margin:4px 0 6px')}
     <div class="chart" id="a-line"></div>
-    <div class="field" style="margin-top:18px"><label>기록하기</label>
+    <div class="field" style="margin-top:18px" id="t-form"><label id="t-label">기록하기</label>
       <div class="seg" id="t-type" style="margin-bottom:10px">${['in', 'out', 'move', 'set'].map(t => `<button type="button" data-t="${t}" class="${txType === t ? 'on' : ''}">${{ in: '입금', out: '출금', move: '이체', set: '잔액 수정' }[t]}</button>`).join('')}</div>
       <div id="t-move-row" style="display:${txType === 'move' ? '' : 'none'};margin-bottom:8px">${others.length ? `<select class="input" id="t-peer">${others.map(o => `<option value="${o.id}">→ ${esc(ro(o.name))} 보내기</option>`).join('')}</select>` : '<div class="hint">이체하려면 계좌를 하나 더 등록해 주세요.</div>'}</div>
       <div class="input-row"><input class="input" id="t-amt" inputmode="numeric" placeholder="${txType === 'set' ? '현재 잔액' : '금액'}"><input class="input" type="date" id="t-date" value="${todayStr()}"></div>
@@ -1844,14 +1849,14 @@ function openAccountDetail(id, txType = 'in') {
       <input class="input" id="t-memo" placeholder="메모 (선택)" style="margin-top:8px">
       <label id="t-carry-row" style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px;color:var(--text-2)"><input type="checkbox" id="t-carry" style="width:18px;height:18px;accent-color:var(--accent)">원래 있던 돈 (이월) — 저금으로 세지 않아요</label>
       <div class="hint" id="t-hint"></div>
-      <button class="btn primary block" style="margin-top:10px" id="t-add">${icon('plus')}기록</button>
+      <div style="display:flex;gap:8px;margin-top:10px"><button class="btn" id="t-cancel" style="display:none;flex:none">취소</button><button class="btn primary" style="flex:1" id="t-add">${icon('plus')}기록</button></div>
     </div>
     <div class="card-sub" style="margin:8px 0 4px">거래 내역 · <span style="color:var(--muted)">[저금]/[이월]을 눌러 바꿀 수 있어요</span></div>
     <div>${txs.length ? txs.map(t => {
       const peer = t.peer ? acctById(t.peer) : null;
       const label = t.transferId ? (t.type === 'in' ? `${peer ? esc(peer.name) : '다른 계좌'}에서 이체` : `${esc(ro(peer ? peer.name : '다른 계좌'))} 이체`) : (esc(t.memo) || TX_LABEL[t.type]);
       const amt = t.type === 'set' ? `<span style="color:var(--text-2)">잔액 ${won(t.amount)}</span>` : `<span class="${t.type === 'in' ? 'up' : 'down'}">${t.type === 'in' ? '+' : '−'}${won(t.amount)}</span>`;
-      return `<div class="list-row"><div class="grow"><div>${label}</div><div class="sub">${t.date.replace(/-/g, '.')}${t.transferId && t.memo ? ' · ' + esc(t.memo) : ''}</div></div><div class="amt">${amt}${(t.type === 'in' || t.type === 'set') && !t.transferId ? `<div><button class="chip ${isCarry(a, t) ? '' : 'hit'}" style="border:0;margin-top:4px;font-size:11px;padding:2px 8px" data-carry="${t.id}">${isCarry(a, t) ? '이월' : '저금'}</button></div>` : ''}</div><button class="icon-btn" style="width:32px;height:32px" data-del-tx="${t.id}" aria-label="삭제">${icon('x')}</button></div>`;
+      return `<div class="list-row" data-tx-row="${t.id}" style="gap:8px"><div class="grow"><div>${label}</div><div class="sub">${t.date.replace(/-/g, '.')}${t.transferId && t.memo ? ' · ' + esc(t.memo) : ''}</div></div><div class="amt">${amt}${(t.type === 'in' || t.type === 'set') && !t.transferId ? `<div><button class="chip ${isCarry(a, t) ? '' : 'hit'}" style="border:0;margin-top:4px;font-size:11px;padding:2px 8px" data-carry="${t.id}">${isCarry(a, t) ? '이월' : '저금'}</button></div>` : ''}</div><button class="icon-btn" style="width:32px;height:32px" data-edit-tx="${t.id}" aria-label="수정">${icon('pen')}</button><button class="icon-btn" style="width:32px;height:32px" data-del-tx="${t.id}" aria-label="삭제">${icon('x')}</button></div>`;
     }).join('') : '<div class="empty-state">아직 거래 기록이 없어요</div>'}</div>`,
   root => {
     renderLine(root.querySelector('#a-line'), { labels, title: `${a.name} 잔액 추이`, series: [{ name: '잔액', values: balanceSeries([a], months), color: acctColor(a), area: true }] });
@@ -1868,11 +1873,51 @@ function openAccountDetail(id, txType = 'in') {
       root.querySelector('#t-carry-row').style.display = type === 'in' || type === 'set' ? 'flex' : 'none';
     };
     setHint();
-    root.querySelectorAll('#t-type button').forEach(b => b.onclick = () => { type = b.dataset.t; root.querySelectorAll('#t-type button').forEach(x => x.classList.toggle('on', x === b)); setHint(); });
+    const pickType = t => { type = t; root.querySelectorAll('#t-type button').forEach(x => x.classList.toggle('on', x.dataset.t === t)); setHint(); };
+    root.querySelectorAll('#t-type button').forEach(b => b.onclick = () => { if (!b.disabled) pickType(b.dataset.t); });
+
+    // ---- 기존 기록 수정: 연필을 누르면 위 입력칸에 채우고 '수정 저장'으로 바꾼다 ----
+    let editing = null;
+    root.querySelectorAll('[data-edit-tx]').forEach(b => b.onclick = () => {
+      const t = a.txs.find(x => x.id === b.dataset.editTx); if (!t) return;
+      editing = t;
+      const isTransfer = !!t.transferId;
+      pickType(isTransfer ? 'move' : t.type);
+      // 이체는 금액·날짜·메모만 (양쪽 계좌 기록이 어긋나지 않게), 일반 기록은 이체로 바꿀 수 없음
+      root.querySelectorAll('#t-type button').forEach(x => x.disabled = isTransfer ? x.dataset.t !== 'move' : x.dataset.t === 'move');
+      if (isTransfer) {
+        const peer = acctById(t.peer);
+        root.querySelector('#t-move-row').innerHTML = `<div class="hint" style="margin:0">${t.type === 'out' ? `→ ${esc(ro(peer ? peer.name : '다른 계좌'))} 보낸 이체` : `${esc(peer ? peer.name : '다른 계좌')}에서 받은 이체`} · 상대 계좌 기록도 함께 바뀌어요</div>`;
+      }
+      amt.value = t.amount.toLocaleString('ko-KR');
+      root.querySelector('#t-date').value = t.date;
+      root.querySelector('#t-memo').value = t.memo || '';
+      root.querySelector('#t-carry').checked = !isTransfer && isCarry(a, t);
+      root.querySelector('#t-label').textContent = '기록 수정';
+      root.querySelector('#t-add').innerHTML = `${icon('check')}수정 저장`;
+      root.querySelector('#t-cancel').style.display = '';
+      root.querySelectorAll('[data-tx-row]').forEach(r => r.style.background = r.dataset.txRow === t.id ? 'var(--accent-soft)' : '');
+      root.querySelector('#t-form').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+    root.querySelector('#t-cancel').onclick = () => openAccountDetail(id, 'in');
+
     root.querySelector('#t-add').onclick = () => {
       const v = parseNum(amt.value);
       if (v == null || amt.value.trim() === '' || (type !== 'set' && v <= 0)) { toast('금액을 입력해 주세요'); return; }
       const date = root.querySelector('#t-date').value || todayStr(), memo = root.querySelector('#t-memo').value.trim(), ts = Date.now();
+      if (editing) {
+        const t = editing;
+        if (t.transferId) {
+          state.accounts.forEach(x => (x.txs || []).forEach(y => { if (y.transferId === t.transferId) Object.assign(y, { amount: v, date, memo }); }));
+        } else {
+          Object.assign(t, { type, amount: v, date, memo });
+          if (type === 'in' || type === 'set') t.carry = root.querySelector('#t-carry').checked; else delete t.carry;
+        }
+        save(); render(); openAccountDetail(id, 'in');
+        const ms = monthSaved(date.slice(0, 7));
+        toast(ms.source === 'acct' ? `수정했어요 · ${mLabel(date.slice(0, 7))} 저금 ${ms.value < 0 ? '−' : ''}${won(Math.abs(ms.value))}` : '수정했어요');
+        return;
+      }
       if (type === 'move') {
         const peer = acctById(root.querySelector('#t-peer')?.value);
         if (!peer) { toast('보낼 계좌를 선택해 주세요'); return; }
@@ -1902,7 +1947,7 @@ function openAccountDetail(id, txType = 'in') {
       if (!confirm(t.transferId ? '이체 기록을 삭제할까요? 상대 계좌의 기록도 함께 지워져요.' : '이 기록을 삭제할까요?')) return;
       if (t.transferId) state.accounts.forEach(x => { x.txs = (x.txs || []).filter(y => y.transferId !== t.transferId); });
       else a.txs = a.txs.filter(x => x.id !== t.id);
-      save(); render(); openAccountDetail(id, type);
+      save(); render(); openAccountDetail(id, editing ? 'in' : type);
     });
   });
 }
